@@ -17,6 +17,12 @@
         android:text="Start Recording"
         android:onClick="onStartButtonClick" />
 
+    <TextView
+        android:id="@+id/audioRecordValueTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="" />
+
     <Button
         android:id="@+id/stopButton"
         android:layout_width="wrap_content"
@@ -24,12 +30,6 @@
         android:enabled="false"
         android:onClick="onStopButtonClick"
         android:text="Stop Recording" />
-
-    <TextView
-        android:id="@+id/audioRecordValueTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="" />
 
 </LinearLayout>
 
