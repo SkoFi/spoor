@@ -20,6 +20,10 @@
             android:name=".PhoneOutputRecorder"
             android:foregroundServiceType="mediaProjection" />
 
+        <service
+            android:name=".MicRecorder"
+            android:foregroundServiceType="mediaProjection" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

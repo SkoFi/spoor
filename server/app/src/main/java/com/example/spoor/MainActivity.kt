@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.CAPTURE_AUDIO_OUTPUT
     )
     private val TAG: String = "MAIN"
-    private lateinit var audioRecordValueTextView: TextView
+    private var selectedRecorder = "Mic"
     private lateinit var recorder: Intent
     private lateinit var mediaProjectionManager: MediaProjectionManager
     private lateinit var captureAudioResultLauncher: ActivityResultLauncher<Intent>
@@ -49,9 +49,20 @@ class MainActivity : AppCompatActivity() {
         return allPermissionsGranted
         //} ?: false
     }
-    private fun switchRecorder(audio_source: String = "Phone_Output", audio_cap_token: Intent? = null,
-                               audio_cap_code: Int = 0) {
-        if (audio_source == "Mic") {
+    private fun switchRecorder(audioCapToken: Intent? = null,
+                               audioCapCode: Int = 0) {
+        // Selects Audio Source to use for recording based on selection
+        // Input:
+        // - audioCapToken (opt): Only for Phone_Output--Token received from Audio Capture request
+        // - audioCapCode (opt): Only for Phone_Output--Code received from Audio Capture request
+        // Parameter:
+        // - recorder: Intent to start Service for selected recorder
+        // - boundService: Service bound to this activity (used to call functions)
+        // - serviceConn: Service Connection to the Recorder
+        // Return:
+        // - None
+        if (selectedRecorder == "Mic") {
+            Log.d(TAG, "Configuring Mic Recorder")
             recorder = Intent(this, MicRecorder::class.java)
 
             serviceConn = object: ServiceConnection {
@@ -60,17 +71,16 @@ class MainActivity : AppCompatActivity() {
                     boundService = binderBridge.getService()
                     isBound = true
                 }
-
                 override fun onServiceDisconnected(name: ComponentName) {
                     isBound = false
                     boundService = null
                 }
             }
-        } else if (audio_source == "Phone_Output") {
+        } else if (selectedRecorder == "Phone_Output") {
             recorder = Intent(this, PhoneOutputRecorder::class.java)
             // Pass extracted Audio Capture Token, Code to Service to initialize Media Projection
-            recorder.putExtra("AUDIO_CAP_TOKEN", audio_cap_token)
-            recorder.putExtra("AUDIO_CAP_CODE", audio_cap_code)
+            recorder.putExtra("AUDIO_CAP_TOKEN", audioCapToken)
+            recorder.putExtra("AUDIO_CAP_CODE", audioCapCode)
 
             serviceConn = object: ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -78,13 +88,12 @@ class MainActivity : AppCompatActivity() {
                     boundService = binderBridge.getService()
                     isBound = true
                 }
-
                 override fun onServiceDisconnected(name: ComponentName) {
                     isBound = false
                     boundService = null
                 }
             }
-        } else if (audio_source == "USB") {
+        } else if (selectedRecorder == "USB") {
             recorder = Intent(this, UsbRecorder::class.java)
         } else {
             throw Exception("Unexpected Audio Source Selection!")
@@ -94,25 +103,29 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Set the view
         setContentView(R.layout.activity_main)
+        // Enable Phone Output button, disable Mic Button. Note: this should b consistent with
+        // the selectedRecorder variable
+        findViewById<Button>(R.id.micSelectButton).isEnabled = false
+        findViewById<Button>(R.id.phoneOutputSelectButton).isEnabled = true
 
-        audioRecordValueTextView = findViewById(R.id.audioRecordValueTextView)
-
-        // Handle request permissions for Audio Capture
+        // Handler for Audio Capture request
         captureAudioResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
             if (result.resultCode == RESULT_OK && result.data is Intent) {
                 // Success
                 Log.d(TAG, "Audio Capture Request Granted!")
 
                 // Initialize default recorder and start it
-                switchRecorder(audio_cap_code=result.resultCode, audio_cap_token=result.data)
+                switchRecorder(audioCapCode=result.resultCode, audioCapToken=result.data)
                 Log.d(TAG, "Starting Service")
-                // startService(recorder)
                 bindService(recorder, serviceConn, Context.BIND_AUTO_CREATE)
             } else {
                 throw Exception("Screen Capture Request denied!")
             }
         }
+
+        // Launch request for required permissions
         requestPermissions(REQUIRED_PERMISSIONS, PERMISSIONS_REQ_CODE)
     }
 
@@ -133,41 +146,43 @@ class MainActivity : AppCompatActivity() {
     // Callbacks
     fun onStartButtonClick(view: View) {
         try {
-            Log.d(TAG, "In start")
-            // Request Media Projection
+            Log.d(TAG, "Start button clicked")
+            // Request approval for Screen/Audio Capture (Note: this returns to handler in onCreate)
             mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-
-            // Request approval for Screen/Audio Capture
             val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
             captureAudioResultLauncher.launch(captureIntent)
-
         } catch (e: NoPermissions) {
-            Log.d(TAG, "In catch block")
-            //.requestPermissions(this, recorder.REQUIRED_PERMISSIONS, PERMISSIONS_REQ_CODE)
-            Log.d(TAG, "Post request")
-            return
+            throw Exception("Audio Capture permission request rejected!")
         }
 
-        // Clear the TextView text
-        audioRecordValueTextView.text = ""
-
         // Disable start button and enable stop button
-        val startButton = findViewById<Button>(R.id.startButton)
-        val stopButton = findViewById<Button>(R.id.stopButton)
-        startButton.isEnabled = false
-        stopButton.isEnabled = true
+        findViewById<Button>(R.id.startButton).isEnabled = false
+        findViewById<Button>(R.id.stopButton).isEnabled = true
     }
 
     fun onStopButtonClick(view: View) {
-        // Display the captured value
-        audioRecordValueTextView.text = boundService?.getBufferData().toString()
+        // Print the captured value
+        Log.d(TAG, "Buffer Data: ${boundService?.getBufferData().contentToString()}")
         unbindService(serviceConn)
 
-        // Disable start button and enable stop button
-        val startButton = findViewById<Button>(R.id.startButton)
-        val stopButton = findViewById<Button>(R.id.stopButton)
-        startButton.isEnabled = true
-        stopButton.isEnabled = false
+        // Enable start button and disable stop button
+        findViewById<Button>(R.id.startButton).isEnabled = true
+        findViewById<Button>(R.id.stopButton).isEnabled = false
+    }
+
+    fun onMicSelButtonClick(view: View) {
+        selectedRecorder = "Mic"
+
+        // Enable Phone Output button, disable Mic Button
+        findViewById<Button>(R.id.micSelectButton).isEnabled = false
+        findViewById<Button>(R.id.phoneOutputSelectButton).isEnabled = true
+    }
+
+    fun onPhoneOutputSelButtonClick(view: View) {
+        selectedRecorder = "Phone_Output"
+
+        // Disable Phone Output button, enable Mic Button
+        findViewById<Button>(R.id.micSelectButton).isEnabled = true
+        findViewById<Button>(R.id.phoneOutputSelectButton).isEnabled = false
     }
 }
-
