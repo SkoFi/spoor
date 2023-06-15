@@ -35,6 +35,12 @@ class MainActivity : AppCompatActivity() {
     private var boundService: RecorderClass? = null
     private lateinit var serviceConn: ServiceConnection
     private var isBound = false
+    // UI Stuff
+    private lateinit var btnMic: Button
+    private lateinit var btnPhoneOutput: Button
+    private lateinit var btnStart: Button
+    private lateinit var btnStop: Button
+    private lateinit var tvCurrentlyPlaying: TextView
 
     private fun permissionsGranted(): Boolean {
         // Check if total set of permissions have been granted for this object
@@ -103,12 +109,19 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Set the view
         setContentView(R.layout.activity_main)
-        // Enable Phone Output button, disable Mic Button. Note: this should b consistent with
-        // the selectedRecorder variable
-        findViewById<Button>(R.id.micSelectButton).isEnabled = false
-        findViewById<Button>(R.id.phoneOutputSelectButton).isEnabled = true
+
+        // Get UI elements
+        btnMic = findViewById(R.id.micSelectButton)
+        btnPhoneOutput = findViewById(R.id.phoneOutputSelectButton)
+        btnStart = findViewById(R.id.startButton)
+        btnStop = findViewById(R.id.stopButton)
+        tvCurrentlyPlaying = findViewById(R.id.tvCurrentlyPlaying)
+
+        // Initialize UI
+        // Note: this should be consistent with the selectedRecorder variable
+        btnMic.isEnabled = false
+        btnPhoneOutput.isEnabled = true
 
         // Handler for Audio Capture request
         captureAudioResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
@@ -155,34 +168,36 @@ class MainActivity : AppCompatActivity() {
             throw Exception("Audio Capture permission request rejected!")
         }
 
-        // Disable start button and enable stop button
-        findViewById<Button>(R.id.startButton).isEnabled = false
-        findViewById<Button>(R.id.stopButton).isEnabled = true
+        // Clear text, switch around the Start/Stop buttons
+        tvCurrentlyPlaying.text = ""
+        btnStart.isEnabled = false
+        btnStop.isEnabled = true
     }
 
     fun onStopButtonClick(view: View) {
         // Print the captured value
         Log.d(TAG, "Buffer Data: ${boundService?.getBufferData().contentToString()}")
+        tvCurrentlyPlaying.text = boundService?.getBufferData().contentToString()
         unbindService(serviceConn)
 
         // Enable start button and disable stop button
-        findViewById<Button>(R.id.startButton).isEnabled = true
-        findViewById<Button>(R.id.stopButton).isEnabled = false
+        btnStart.isEnabled = true
+        btnStop.isEnabled = false
     }
 
     fun onMicSelButtonClick(view: View) {
         selectedRecorder = "Mic"
 
         // Enable Phone Output button, disable Mic Button
-        findViewById<Button>(R.id.micSelectButton).isEnabled = false
-        findViewById<Button>(R.id.phoneOutputSelectButton).isEnabled = true
+        btnMic.isEnabled = false
+        btnPhoneOutput.isEnabled = true
     }
 
     fun onPhoneOutputSelButtonClick(view: View) {
         selectedRecorder = "Phone_Output"
 
         // Disable Phone Output button, enable Mic Button
-        findViewById<Button>(R.id.micSelectButton).isEnabled = true
-        findViewById<Button>(R.id.phoneOutputSelectButton).isEnabled = false
+        btnMic.isEnabled = true
+        btnPhoneOutput.isEnabled = false
     }
 }

@@ -5,12 +5,26 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- Top row -->
+    <!-- Panel 1: Audio Source -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp">
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Audio Source"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:padding="16dp" />
+
+        <!-- First row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp">
 
         <Button
             android:id="@+id/micSelectButton"
@@ -27,14 +41,29 @@
             android:layout_marginStart="16dp"
             android:onClick="onPhoneOutputSelButtonClick"/>
 
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Bottom row -->
+    <!-- Panel 2: Session Control -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp">
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Session Control"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:padding="16dp" />
+
+        <!-- Second row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp">
 
         <Button
             android:id="@+id/startButton"
@@ -50,7 +79,38 @@
             android:layout_marginStart="16dp"
             android:text="Stop Recording"
             android:onClick="onStopButtonClick"/>
+        </LinearLayout>
+    </LinearLayout>
 
+    <!-- Panel 3: Currently Playing -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Currently Playing"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:padding="16dp" />
+
+        <!-- Third row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvCurrentlyPlaying"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No audio playing"
+                android:layout_marginStart="16dp" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>
+
