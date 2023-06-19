@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     // UI Stuff
     private lateinit var btnMic: Button
     private lateinit var btnPhoneOutput: Button
+    private lateinit var btnUsb: Button
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var tvCurrentlyPlaying: TextView
@@ -83,6 +84,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } else if (selectedRecorder == "Phone_Output") {
+            Log.d(TAG, "Configuring Phone Output Recorder")
             recorder = Intent(this, PhoneOutputRecorder::class.java)
             // Pass extracted Audio Capture Token, Code to Service to initialize Media Projection
             recorder.putExtra("AUDIO_CAP_TOKEN", audioCapToken)
@@ -101,6 +103,18 @@ class MainActivity : AppCompatActivity() {
             }
         } else if (selectedRecorder == "USB") {
             recorder = Intent(this, UsbRecorder::class.java)
+
+            serviceConn = object: ServiceConnection {
+                override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                    val binderBridge = service as UsbRecorder.RecBinder
+                    boundService = binderBridge.getService()
+                    isBound = true
+                }
+                override fun onServiceDisconnected(name: ComponentName) {
+                    isBound = false
+                    boundService = null
+                }
+            }
         } else {
             throw Exception("Unexpected Audio Source Selection!")
         }
@@ -114,14 +128,18 @@ class MainActivity : AppCompatActivity() {
         // Get UI elements
         btnMic = findViewById(R.id.micSelectButton)
         btnPhoneOutput = findViewById(R.id.phoneOutputSelectButton)
+        btnUsb = findViewById(R.id.usbSelectButton)
         btnStart = findViewById(R.id.startButton)
         btnStop = findViewById(R.id.stopButton)
         tvCurrentlyPlaying = findViewById(R.id.tvCurrentlyPlaying)
 
         // Initialize UI
         // Note: this should be consistent with the selectedRecorder variable
+        btnStart.isEnabled = true
+        btnStop.isEnabled = false
         btnMic.isEnabled = false
         btnPhoneOutput.isEnabled = true
+        btnUsb.isEnabled = true
 
         // Handler for Audio Capture request
         captureAudioResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
@@ -157,6 +175,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Callbacks
+    fun onMicSelButtonClick(view: View) {
+        selectedRecorder = "Mic"
+
+        // Enable Phone Output button, disable Mic Button
+        btnMic.isEnabled = false
+        btnPhoneOutput.isEnabled = true
+        btnUsb.isEnabled = true
+    }
+
+    fun onPhoneOutputSelButtonClick(view: View) {
+        selectedRecorder = "Phone_Output"
+
+        // Disable Phone Output button, enable Mic Button
+        btnMic.isEnabled = true
+        btnPhoneOutput.isEnabled = false
+        btnUsb.isEnabled = true
+    }
+
+    fun onUsbSelButtonClick(view: View) {
+        selectedRecorder = "USB"
+
+        // Disable Phone Output button, enable Mic Button
+        btnMic.isEnabled = true
+        btnPhoneOutput.isEnabled = true
+        btnUsb.isEnabled = false
+    }
+
     fun onStartButtonClick(view: View) {
         try {
             Log.d(TAG, "Start button clicked")
@@ -178,26 +223,13 @@ class MainActivity : AppCompatActivity() {
         // Print the captured value
         Log.d(TAG, "Buffer Data: ${boundService?.getBufferData().contentToString()}")
         tvCurrentlyPlaying.text = boundService?.getBufferData().contentToString()
+        boundService?.stopRecording()
+        boundService?.playbackRecording()
+
         unbindService(serviceConn)
 
         // Enable start button and disable stop button
         btnStart.isEnabled = true
         btnStop.isEnabled = false
-    }
-
-    fun onMicSelButtonClick(view: View) {
-        selectedRecorder = "Mic"
-
-        // Enable Phone Output button, disable Mic Button
-        btnMic.isEnabled = false
-        btnPhoneOutput.isEnabled = true
-    }
-
-    fun onPhoneOutputSelButtonClick(view: View) {
-        selectedRecorder = "Phone_Output"
-
-        // Disable Phone Output button, enable Mic Button
-        btnMic.isEnabled = true
-        btnPhoneOutput.isEnabled = false
     }
 }

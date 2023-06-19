@@ -1,0 +1,22 @@
+# Uncomment this to preserve the line number information for
+# debugging stack traces.
+#-keepattributes SourceFile,LineNumberTable
+
+# If you keep the line number information, uncomment this to
+# hide the original source file name.
+#-renamesourcefileattribute SourceFile
+
+-keepattributes Signature
+-keep public class com.google.gson
+
+
+# SHAZAM CONFIGURATION
+# Signature extractor
+-keep class com.shazam.sigx.** { *; }
+-keep class com.shazam.jni.** { *; }
+-keep class com.shazam.sig.** { *; }
+-keep class com.shazam.recognition.** { *; }
+
+# Shazamkit models
+-keep class com.shazam.shazamkit.internal.catalog.shazam.server.model.** { *; }
+-keep class com.shazam.shazamkit.internal.catalog.custom.model.** { *; }

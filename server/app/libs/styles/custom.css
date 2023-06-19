@@ -1,0 +1,9 @@
+#logo {
+        background-size: 100px 100px;
+        height: 125px;
+        background-image: url("../images/shazamkitlogo.png");
+}
+
+#main > div.footer > span.pull-right {
+    display: none;
+}
