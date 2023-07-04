@@ -7,8 +7,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
-import android.os.Bundle
-import android.os.IBinder
+import android.os.*
 import android.util.Log
 import android.view.View
 import android.widget.Button
@@ -16,24 +15,24 @@ import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.example.spoor.RecorderClass.NoPermissions
+import kotlinx.coroutines.*
+import android.os.IBinder
 
-class MainActivity : AppCompatActivity() {
+open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
     private val PERMISSIONS_REQ_CODE = 1
-    private val SCREEN_CAP_REQ_CODE = 2
     private val REQUIRED_PERMISSIONS = arrayOf(
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.CAPTURE_AUDIO_OUTPUT
     )
     private val TAG: String = "MAIN"
     private var selectedRecorder = "Mic"
-    private lateinit var recorder: Intent
     private lateinit var mediaProjectionManager: MediaProjectionManager
     private lateinit var captureAudioResultLauncher: ActivityResultLauncher<Intent>
-    private var boundService: RecorderClass? = null
-    private lateinit var serviceConn: ServiceConnection
+    private lateinit var boundService: SessionService
+    private lateinit var sessionServiceIntent: Intent
     private var isBound = false
     // UI Stuff
     private lateinit var btnMic: Button
@@ -43,83 +42,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStop: Button
     private lateinit var tvCurrentlyPlaying: TextView
 
-    private fun permissionsGranted(): Boolean {
-        // Check if total set of permissions have been granted for this object
-        //val activity = context as? AppCompatActivity
-        //return activity?.let {
-        var allPermissionsGranted = true
-        for (permission in REQUIRED_PERMISSIONS) {
-            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                allPermissionsGranted = false
-            }
-        }
-        return allPermissionsGranted
-        //} ?: false
-    }
-    private fun switchRecorder(audioCapToken: Intent? = null,
-                               audioCapCode: Int = 0) {
-        // Selects Audio Source to use for recording based on selection
-        // Input:
-        // - audioCapToken (opt): Only for Phone_Output--Token received from Audio Capture request
-        // - audioCapCode (opt): Only for Phone_Output--Code received from Audio Capture request
-        // Parameter:
-        // - recorder: Intent to start Service for selected recorder
-        // - boundService: Service bound to this activity (used to call functions)
-        // - serviceConn: Service Connection to the Recorder
-        // Return:
-        // - None
-        if (selectedRecorder == "Mic") {
-            Log.d(TAG, "Configuring Mic Recorder")
-            recorder = Intent(this, MicRecorder::class.java)
+    // Initialize Recorders
+    private lateinit var recorder: RecorderClass
+    private lateinit var micRecorder: MicRecorder
+    private lateinit var usbRecorder: UsbRecorder
+    private lateinit var phoneOutputRecorder: PhoneOutputRecorder
 
-            serviceConn = object: ServiceConnection {
-                override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    val binderBridge = service as MicRecorder.RecBinder
-                    boundService = binderBridge.getService()
-                    isBound = true
-                }
-                override fun onServiceDisconnected(name: ComponentName) {
-                    isBound = false
-                    boundService = null
-                }
-            }
-        } else if (selectedRecorder == "Phone_Output") {
-            Log.d(TAG, "Configuring Phone Output Recorder")
-            recorder = Intent(this, PhoneOutputRecorder::class.java)
-            // Pass extracted Audio Capture Token, Code to Service to initialize Media Projection
-            recorder.putExtra("AUDIO_CAP_TOKEN", audioCapToken)
-            recorder.putExtra("AUDIO_CAP_CODE", audioCapCode)
-
-            serviceConn = object: ServiceConnection {
-                override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    val binderBridge = service as PhoneOutputRecorder.RecBinder
-                    boundService = binderBridge.getService()
-                    isBound = true
-                }
-                override fun onServiceDisconnected(name: ComponentName) {
-                    isBound = false
-                    boundService = null
-                }
-            }
-        } else if (selectedRecorder == "USB") {
-            recorder = Intent(this, UsbRecorder::class.java)
-
-            serviceConn = object: ServiceConnection {
-                override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                    val binderBridge = service as UsbRecorder.RecBinder
-                    boundService = binderBridge.getService()
-                    isBound = true
-                }
-                override fun onServiceDisconnected(name: ComponentName) {
-                    isBound = false
-                    boundService = null
-                }
-            }
-        } else {
-            throw Exception("Unexpected Audio Source Selection!")
-        }
-    }
-
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -141,16 +70,19 @@ class MainActivity : AppCompatActivity() {
         btnPhoneOutput.isEnabled = true
         btnUsb.isEnabled = true
 
+        sessionServiceIntent = Intent(this, SessionService::class.java)
+
         // Handler for Audio Capture request
         captureAudioResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
             if (result.resultCode == RESULT_OK && result.data is Intent) {
                 // Success
                 Log.d(TAG, "Audio Capture Request Granted!")
 
-                // Initialize default recorder and start it
-                switchRecorder(audioCapCode=result.resultCode, audioCapToken=result.data)
-                Log.d(TAG, "Starting Service")
-                bindService(recorder, serviceConn, Context.BIND_AUTO_CREATE)
+                boundService.setCredentials(result.resultCode, result.data!!)
+
+                GlobalScope.launch {
+                    boundService.startSession()
+                }
             } else {
                 throw Exception("Screen Capture Request denied!")
             }
@@ -174,7 +106,87 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Handler for Service Connection
+    private val serviceConn = object: ServiceConnection {
+        @RequiresApi(Build.VERSION_CODES.Q)
+        override fun onServiceConnected(name: ComponentName, ibinder: IBinder) {
+            Log.d(TAG, "Service Connected")
+            isBound = true
+
+            val binder = ibinder as SessionService.SessionBinder
+            // Get Bound Service instance (now have access to Service methods)
+            boundService = binder.getService()
+            // Set callback to the Service (grants Service access to its callback)
+            boundService.setCallback(this@MainActivity)
+
+            // Register this Activity with the Bound service (enables callbacks)
+            //(boundService as MicRecorder).registerClient(this@MainActivity)
+
+            val captureReqNeeded = boundService.initialize(selectedRecorder, captureAudioResultLauncher)
+
+            if (!captureReqNeeded) {
+                GlobalScope.launch {
+                    boundService.startSession()
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            isBound = false
+        }
+    }
+
+    //// Custom Functions
+    private fun permissionsGranted(): Boolean {
+        /*
+        Check if total set of permissions have been granted for this object
+
+        val activity = context as? AppCompatActivity
+        return activity?.let {
+        */
+        var allPermissionsGranted = true
+        for (permission in REQUIRED_PERMISSIONS) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                allPermissionsGranted = false
+            }
+        }
+        return allPermissionsGranted
+        //} ?: false
+    }
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun switchRecorder(selectedRecorder: String = "Mic") {
+        /*
+        Selects Audio Source to use for recording based on selection
+        Input:
+        - audioCapToken (opt): Only for Phone_Output--Token received from Audio Capture request
+        - audioCapCode (opt): Only for Phone_Output--Code received from Audio Capture request
+        Parameter:
+        - recorder: Intent to start Service for selected recorder
+        - boundService: Service bound to this activity (used to call functions)
+        - serviceConn: Service Connection to the Recorder
+        Return:
+        - None
+        */
+        Log.d(TAG, "Configuring to $selectedRecorder")
+        if (selectedRecorder == "Mic") {
+            recorder = micRecorder
+        } else if (selectedRecorder == "Phone_Output") {
+            recorder = phoneOutputRecorder
+        } else if (selectedRecorder == "USB") {
+            recorder = usbRecorder
+        } else {
+            throw Exception("Unexpected Audio Source Selection!")
+        }
+    }
+
     // Callbacks
+    override fun getCurrentSong(songText: String){
+        runOnUiThread {
+            Log.d(TAG, "Updating text to $songText")
+            tvCurrentlyPlaying.text = songText
+        }
+    }
+
     fun onMicSelButtonClick(view: View) {
         selectedRecorder = "Mic"
 
@@ -202,16 +214,10 @@ class MainActivity : AppCompatActivity() {
         btnUsb.isEnabled = false
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun onStartButtonClick(view: View) {
-        try {
-            Log.d(TAG, "Start button clicked")
-            // Request approval for Screen/Audio Capture (Note: this returns to handler in onCreate)
-            mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
-            captureAudioResultLauncher.launch(captureIntent)
-        } catch (e: NoPermissions) {
-            throw Exception("Audio Capture permission request rejected!")
-        }
+        Log.d(TAG, "Start button clicked")
+        bindService(sessionServiceIntent, serviceConn, Context.BIND_AUTO_CREATE)
 
         // Clear text, switch around the Start/Stop buttons
         tvCurrentlyPlaying.text = ""
@@ -221,11 +227,6 @@ class MainActivity : AppCompatActivity() {
 
     fun onStopButtonClick(view: View) {
         // Print the captured value
-        Log.d(TAG, "Buffer Data: ${boundService?.getBufferData().contentToString()}")
-        tvCurrentlyPlaying.text = boundService?.getBufferData().contentToString()
-        boundService?.stopRecording()
-        boundService?.playbackRecording()
-
         unbindService(serviceConn)
 
         // Enable start button and disable stop button
