@@ -41,6 +41,7 @@ class SessionService() : Service() {
     private lateinit var generatedSnd: ByteArray
     private lateinit var recorderType: String
     private lateinit var recorder: RecorderClass
+    private lateinit var shazamSession: ShazamKitClass
 
     class NoPermissions(message: String) : Exception(message)
 
@@ -149,7 +150,16 @@ class SessionService() : Service() {
         // Generate a notification that the app is running in the background
         launchNotification()
 
-        recorder.startRecording()
+        // Generate ShazamKitClass to enable a streaming session for our recording
+        shazamSession = ShazamKitClass()
+        // TODO add developer token class
+//        val developerToken = null
+        val developerToken = "eyJhbGciOiJFUzI1NiIsImtpZCI6IkFBRDk5Wk5GNUciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiI1UlBGQTI2TTkzIiwiaWF0IjoxNjg4OTQ0OTg3LCJleHAiOjE3MDQ1MDA1ODd9.RpPTVa94vp8ZxX39J2DG0ocxdqf-KhkNjlWLaSRl-njushOfWhm2YWhSfpr23dAVyynfCfr3qy_gi9tioK6e5w"
+        shazamSession.configureShazamKitSession(developerToken)
+
+//        recorder.startRecording()
+
+        shazamSession.startRecordingThread(recorder)
 
         // Main Session Loop
         while (true) {
