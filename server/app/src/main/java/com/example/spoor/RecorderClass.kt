@@ -55,6 +55,11 @@ abstract class RecorderClass(val context: Context) {
         // Template
     }
 
+    open fun read(readBuffer: ByteArray): Int {
+        // Used to read buffer of our recorder
+        return audioRecord!!.read(readBuffer, 0, BUFFER_SIZE_BYTES)
+    }
+
     open fun setMediaCaptureCredentials(audioCapCodeIn: Int, audioCapTokenIn: Intent) {
         // Template
     }
@@ -151,6 +156,11 @@ abstract class RecorderClass(val context: Context) {
         return currentRecordingIndex
     }
 
+    fun currentlyRecording(): Boolean {
+        // Getter callback to return if we are recording
+        return isRecording
+    }
+
     fun getBufferData(): ByteArray {
         // Getter callback to return the last recordingBuffer
         return lastBuffer
@@ -173,8 +183,20 @@ class MicRecorder(context: Context): RecorderClass(context) {
     override fun buildRecorder() {
         Log.d(TAG, "Mic Recorder Init")
 
+        // Build Audio Format
+        val audioFormat = AudioFormat.Builder()
+            .setEncoding(ENCODING)
+            .setSampleRate(SAMPLE_RATE_HZ)
+            .setChannelMask(CHANNEL)
+            .build()
+
         // Build Audio Recorder
-        audioRecord = AudioRecord(AUDIO_SOURCE, SAMPLE_RATE_HZ, CHANNEL, ENCODING, BUFFER_SIZE_BYTES)
+        // audioRecord = AudioRecord(AUDIO_SOURCE, SAMPLE_RATE_HZ, CHANNEL, ENCODING, BUFFER_SIZE_BYTES)
+        audioRecord = AudioRecord.Builder()
+            .setAudioSource(AUDIO_SOURCE)
+            .setAudioFormat(audioFormat)
+            .setBufferSizeInBytes(BUFFER_SIZE_BYTES)
+            .build()
     }
 }
 
