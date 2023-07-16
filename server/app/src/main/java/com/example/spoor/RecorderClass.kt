@@ -163,7 +163,12 @@ abstract class RecorderClass(val context: Context) {
 
     fun getBufferData(): ByteArray {
         // Getter callback to return the last recordingBuffer
-        return lastBuffer
+        return recordingBuffer
+    }
+
+    fun getSampleByteLength(): Int {
+        // Getter callback to return the size of the sample for Shazamkit signature generator
+        return BUFFERS_PER_SAMPlE.toInt()
     }
 
     fun requestRecordingPermission(context: Context, captureAudioResultLauncher: ActivityResultLauncher<Intent>): Boolean {

@@ -14,6 +14,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.*
@@ -42,6 +43,8 @@ class SessionService() : Service() {
     private lateinit var recorderType: String
     private lateinit var recorder: RecorderClass
     private lateinit var shazamSession: ShazamKitClass
+
+    val jsonChannel = Channel<String>()
 
     class NoPermissions(message: String) : Exception(message)
 
@@ -96,7 +99,7 @@ class SessionService() : Service() {
         recorderType = recorderTypeIn
         buildRecorder(recorderType)
 
-        launchNotification()
+        //launchNotification()
 
         // For Media Projections, request approval
         if (recorderType == "Phone_Output"){
@@ -157,9 +160,10 @@ class SessionService() : Service() {
         val developerToken = "eyJhbGciOiJFUzI1NiIsImtpZCI6IkFBRDk5Wk5GNUciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiI1UlBGQTI2TTkzIiwiaWF0IjoxNjg4OTQ0OTg3LCJleHAiOjE3MDQ1MDA1ODd9.RpPTVa94vp8ZxX39J2DG0ocxdqf-KhkNjlWLaSRl-njushOfWhm2YWhSfpr23dAVyynfCfr3qy_gi9tioK6e5w"
         shazamSession.configureShazamKitSession(developerToken)
 
-//        recorder.startRecording()
+        recorder.startRecording()
 
-        shazamSession.startRecordingThread(recorder)
+//        shazamSession.startRecordingThread(recorder)
+
 
         // Main Session Loop
         while (true) {
@@ -169,7 +173,11 @@ class SessionService() : Service() {
             Log.d(TAG, "Buffer Data: ${recordingBuffer.contentToString()}")
 
             Log.d(TAG, "Main - Shazam-ing")
-            recorder.playbackRecording()
+//            recorder.playbackRecording()
+            val bufferSample = recorder.getBufferData()
+//            val bytelength = recorder.getSampleByteLength()
+            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
+            Log.d(TAG, "Shazam Match Return is: $trackMatch")
 
             // FIXME -- eventually this should be artist/song but rn just current recording index
             Log.d(TAG, "Main - Spotify-ing")
