@@ -14,6 +14,8 @@ class ShazamKitClass {
     val TAG = "SHAZAMKIT"
     private lateinit var catalog: Catalog
     private var currentSession: StreamingSession? = null
+    private var trackSession: Session? = null
+    private var signatureGenerator: SignatureGenerator? = null
     private var audioRecord: AudioRecord? = null
     private var recordingThread: Thread? = null
     private var isRecording = false
@@ -38,6 +40,110 @@ class ShazamKitClass {
             Log.d(TAG, "Successfully generated catalog" + catalog)
 
 
+
+            Log.d(TAG, "attempting to launch streaming session in coroutine")
+
+            coroutineScope.launch {
+                when (val result =  ShazamKit.createSession(catalog)) {
+                    is ShazamKitResult.Success -> {
+                        Log.d(TAG, "Successfully created Shazam session")
+                        Log.d(TAG, "Result data: " + result.data)
+
+                        trackSession = result.data
+
+                    }
+                    is ShazamKitResult.Failure -> {
+                        Log.d(TAG, "Failed to create Shazam session")
+                        result.reason.message?.let { onError(it) }
+                    }
+                }
+                Log.d(TAG, "Attempted to create signature generator in coroutine")
+                when (val result = ShazamKit.createSignatureGenerator(AudioSampleRateInHz.SAMPLE_RATE_48000)) {
+                    is ShazamKitResult.Success -> {
+                        Log.d(TAG, "Successfully created Signature Generator session")
+                        Log.d(TAG, "Result data: " + result.data)
+                        signatureGenerator = result.data
+                    }
+
+                    is ShazamKitResult.Failure -> {
+                        Log.d(TAG, "Failed to create Shazam session")
+                        result.reason.message?.let { onError(it) }
+                    }
+                }
+
+
+            }
+        }catch (e: Exception){
+            e.message?.let { onError(it) }
+        }
+    }
+
+    fun matchBuffer(bufferSample: ByteArray, sampleByteLength: Int) : String {
+
+        signatureGenerator?.append(bufferSample, sampleByteLength, System.currentTimeMillis())
+        val signature = signatureGenerator?.generateSignature()
+        var returnVal = ""
+        coroutineScope.launch {
+            trackSession?.let {
+                signature?.let {
+                    val matchResult = trackSession?.match(signature)
+                    try {
+                        when (matchResult) {
+                            is MatchResult.Match -> {
+                                Log.d(TAG, matchResult.toJsonString())
+                                returnVal = matchResult.toJsonString()
+                            }
+
+                            is MatchResult.NoMatch -> Log.d(
+                                TAG,
+                                "Match Not Found"
+                            )
+
+                            is MatchResult.Error -> Log.d(
+                                TAG,
+                                "Error encountered",
+                                matchResult.exception
+                            )
+                            else -> Log.d(
+                                TAG,
+                                "go f yourself, don't know why I need to add this"
+                            )
+                        }
+
+                    } catch (e: Exception) {
+                        e.message?.let { onError(it) }
+                    }
+                }
+            }
+        }
+        return returnVal
+    }
+
+
+
+
+
+
+    //Max - Used for streaming recording session, to be revisited later
+    fun configureShazamKitStreamingSession(
+        developerToken: String?,
+    ) {
+        try{
+            if (developerToken == null) {
+                Log.d(TAG, "Developer Token is Null")
+                return
+            }
+            Log.d(TAG, "Trying to get developertokenprovider")
+            val tokenProvider = DeveloperTokenProvider {
+                DeveloperToken(developerToken)
+            }
+            Log.d(TAG, "Successfully got developer token" + tokenProvider)
+            Log.d(TAG, "trying to generate catalog with token")
+            catalog = ShazamKit.createShazamCatalog(tokenProvider)
+            Log.d(TAG, "Successfully generated catalog" + catalog)
+
+
+
             Log.d(TAG, "attempting to launch streaming session in coroutine")
 
             coroutineScope.launch {
@@ -58,15 +164,15 @@ class ShazamKitClass {
                         result.reason.message?.let { onError(it) }
                     }
                 }
-
                 Log.d(TAG, "Attempted to start streaming session in coroutine")
                 currentSession?.let {
                     currentSession?.recognitionResults()?.collect { result: MatchResult ->
                         try{
                             when (result) {
-                                is MatchResult.Match -> Log.d(TAG,
-                                    result.toJsonString()
-                                )
+                                is MatchResult.Match -> {
+                                    Log.d(TAG, result.toJsonString())
+
+                                }
                                 is MatchResult.NoMatch -> Log.d(TAG,
                                     "Match Not Found")
                                 is MatchResult.Error -> Log.d(TAG,
@@ -86,6 +192,8 @@ class ShazamKitClass {
     }
 
 
+
+    //Max - Used for streaming recording session, to be revisited later
     fun startRecordingThread(recorder: RecorderClass) {
         Log.d(TAG, "Starting record thread")
         Log.d(TAG, "Buffer size is " + recorder.BUFFER_SIZE_BYTES)
