@@ -1,10 +1,7 @@
 package com.example.spoor
 
 import android.Manifest
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
+import android.content.*
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.*
@@ -27,9 +24,9 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.CAPTURE_AUDIO_OUTPUT
     )
+    private val SPOTIFY_AUTH_REQ_CODE = 1000
     private val TAG: String = "MAIN"
     private var selectedRecorder = "Mic"
-    private lateinit var mediaProjectionManager: MediaProjectionManager
     private lateinit var captureAudioResultLauncher: ActivityResultLauncher<Intent>
     private lateinit var boundService: SessionService
     private lateinit var sessionServiceIntent: Intent
@@ -41,34 +38,25 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var tvCurrentlyPlaying: TextView
-
     // Initialize Recorders
     private lateinit var recorder: RecorderClass
     private lateinit var micRecorder: MicRecorder
     private lateinit var usbRecorder: UsbRecorder
     private lateinit var phoneOutputRecorder: PhoneOutputRecorder
+    // Spotify Stuff
+    private val spotifyApi = SpotifyApi()
+    private lateinit var prefs: SharedPreferences
+    private lateinit var editor: SharedPreferences.Editor
 
     @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_main)
+        // Initialize Prefs File
+        prefs = getSharedPreferences("com.example.recscollector", MODE_PRIVATE)
+        editor = prefs.edit()
 
-        // Get UI elements
-        btnMic = findViewById(R.id.micSelectButton)
-        btnPhoneOutput = findViewById(R.id.phoneOutputSelectButton)
-        btnUsb = findViewById(R.id.usbSelectButton)
-        btnStart = findViewById(R.id.startButton)
-        btnStop = findViewById(R.id.stopButton)
-        tvCurrentlyPlaying = findViewById(R.id.tvCurrentlyPlaying)
-
-        // Initialize UI
-        // Note: this should be consistent with the selectedRecorder variable
-        btnStart.isEnabled = true
-        btnStop.isEnabled = false
-        btnMic.isEnabled = false
-        btnPhoneOutput.isEnabled = true
-        btnUsb.isEnabled = true
+        initUi()
 
         sessionServiceIntent = Intent(this, SessionService::class.java)
 
@@ -81,7 +69,7 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
                 boundService.setCredentials(result.resultCode, result.data!!)
 
                 GlobalScope.launch {
-                    boundService.startSession()
+                    boundService.startSession(spotifyApi)
                 }
             } else {
                 throw Exception("Screen Capture Request denied!")
@@ -90,6 +78,27 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
 
         // Launch request for required permissions
         requestPermissions(REQUIRED_PERMISSIONS, PERMISSIONS_REQ_CODE)
+
+        // Handler for Spotify Login
+        val spotifyLoginHandler = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+            if (result.resultCode == RESULT_OK && result.data is Intent) {
+                // Get return from Auth Activity
+                val returnedResult = result.data.toString()
+                Log.d(TAG, "Returned from Auth. Result: $returnedResult")
+
+                // Load User ID and Access Token
+                val userId = prefs.getString("SPOTIFY_USER_ID", null)
+                val accessToken = prefs.getString("SPOTIFY_ACCESS_TOKEN", null)
+                if (userId != null && accessToken != null) {
+                    spotifyApi.setTokens(userId, accessToken)
+                } else {
+                    throw Exception("Failed to get userId and/or AccessToken: $userId $accessToken")
+                }
+            }
+        }
+        // Login to Spotify
+        val spotifyLogin = Intent(this, SpotifyAuthActivity::class.java)
+        spotifyLoginHandler.launch(spotifyLogin)
     }
 
     // Handle the result of permission request
@@ -126,7 +135,7 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
 
             if (!captureReqNeeded) {
                 GlobalScope.launch {
-                    boundService.startSession()
+                    boundService.startSession(spotifyApi)
                 }
             }
         }
@@ -137,6 +146,25 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
     }
 
     //// Custom Functions
+    private fun initUi() {
+        setContentView(R.layout.activity_main)
+
+        // Get UI elements
+        btnMic = findViewById(R.id.micSelectButton)
+        btnPhoneOutput = findViewById(R.id.phoneOutputSelectButton)
+        btnUsb = findViewById(R.id.usbSelectButton)
+        btnStart = findViewById(R.id.startButton)
+        btnStop = findViewById(R.id.stopButton)
+        tvCurrentlyPlaying = findViewById(R.id.tvCurrentlyPlaying)
+
+        // Initialize UI
+        // Note: this should be consistent with the selectedRecorder variable
+        btnStart.isEnabled = true
+        btnStop.isEnabled = false
+        btnMic.isEnabled = false
+        btnPhoneOutput.isEnabled = true
+        btnUsb.isEnabled = true
+    }
     private fun permissionsGranted(): Boolean {
         /*
         Check if total set of permissions have been granted for this object

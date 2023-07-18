@@ -17,6 +17,9 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import java.util.*
 
 
@@ -99,8 +102,6 @@ class SessionService() : Service() {
         recorderType = recorderTypeIn
         buildRecorder(recorderType)
 
-        //launchNotification()
-
         // For Media Projections, request approval
         if (recorderType == "Phone_Output"){
             requestRecordingPermission(handler)
@@ -147,7 +148,7 @@ class SessionService() : Service() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    suspend fun startSession() {
+    suspend fun startSession(spotifyApi: SpotifyApi) {
         Log.d(TAG, "Starting Session")
 
         // Generate a notification that the app is running in the background
@@ -167,23 +168,30 @@ class SessionService() : Service() {
 
         // Main Session Loop
         while (true) {
-            Log.d(TAG, "Main - Collecting Sample")
+            Log.d(TAG, "(( Main - Collecting Sample ))")
             withContext(Dispatchers.IO) { recorder.collectSample() }
             val recordingIndex = recorder.getCurrRecordingIndex()
             Log.d(TAG, "Buffer Data: ${recordingBuffer.contentToString()}")
 
-            Log.d(TAG, "Main - Shazam-ing")
+            Log.d(TAG, "(( Main - Shazam-ing ))")
 //            recorder.playbackRecording()
             val bufferSample = recorder.getBufferData()
 //            val bytelength = recorder.getSampleByteLength()
             val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
             Log.d(TAG, "Shazam Match Return is: $trackMatch")
+            // FIXME - replace with return from Shazam function (trackMatch comin up empty)
+            val artist = "Spellspellspell"
+            val songTitle = "I Wanna"
 
-            // FIXME -- eventually this should be artist/song but rn just current recording index
-            Log.d(TAG, "Main - Spotify-ing")
+            Log.d(TAG, "(( Main - Spotify-ing ))")
+            val songUri = spotifyApi.getSongUri(artist, songTitle)
+            if (songUri != null){
+                Log.d(TAG, songUri)
+            }
+
             // Callback to main activity. Note: this must be done in main thread
             GlobalScope.launch(Dispatchers.Main) {
-                callback?.getCurrentSong(recordingIndex.toString())
+                callback?.getCurrentSong("(${recordingIndex.toString()}) $artist: $songTitle")
             }
         }
     }

@@ -12,6 +12,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat.getSystemService
 import kotlinx.coroutines.Dispatchers
@@ -243,6 +244,11 @@ class PhoneOutputRecorder(context: Context): RecorderClass(context) {
             .build()
 
         Log.d(TAG, "Created Audio Output Recorder!")
+    }
+
+    override fun startRecording() {
+
+
     }
 }
 
