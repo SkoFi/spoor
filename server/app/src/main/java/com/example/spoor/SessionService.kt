@@ -12,11 +12,15 @@ import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.Retrofit
 import java.util.*
 
 
@@ -43,6 +47,7 @@ class SessionService() : Service() {
     private lateinit var recorderType: String
     private lateinit var recorder: RecorderClass
     private lateinit var shazamSession: ShazamKitClass
+    private lateinit var webService: SpoorWeb
 
     val jsonChannel = Channel<String>()
 
@@ -74,10 +79,55 @@ class SessionService() : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d(TAG, "Attempting to end web app session")
+
+        // TODO update session API (not working)
+        // Send PUT Request to web app toggling session
+        updateSession()
+
         Log.d(TAG, "Destroyed")
 
         recorder.stopRecording()
     }
+
+    //// API Functions
+    private fun buildWebSession() {
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://king-prawn-app-q8tj5.ondigitalocean.app/")
+            .build()
+
+        webService = retrofit.create(SpoorWeb::class.java)
+    }
+
+    private fun updateSession() {
+
+//        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeorNull())
+//
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = webService.updateSession()
+
+            withContext(Dispatchers.Main) {
+                if (response.isSuccessful) {
+                    val gson = GsonBuilder().setPrettyPrinting().create()
+                    val prettyJson = gson.toJson(
+                        JsonParser.parseString(
+                            response.body()
+                                ?.string()
+                        )
+                    )
+
+                    Log.d("Pretty Printed JSON :", prettyJson)
+
+                } else {
+
+                    Log.e("RETROFIT_ERROR", response.code().toString())
+
+                }
+            }
+        }
+    }
+
+
 
     //// Custom Functions
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -153,6 +203,14 @@ class SessionService() : Service() {
         // Generate a notification that the app is running in the background
         launchNotification()
 
+        //build connection to spoor web app
+        buildWebSession()
+
+
+        Log.d(TAG, "Attempting to start web app session")
+        // Send PUT Request to web app toggling session
+        updateSession()
+
         // Generate ShazamKitClass to enable a streaming session for our recording
         shazamSession = ShazamKitClass()
         // TODO add developer token class
@@ -176,7 +234,8 @@ class SessionService() : Service() {
 //            recorder.playbackRecording()
             val bufferSample = recorder.getBufferData()
 //            val bytelength = recorder.getSampleByteLength()
-            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
+//            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
+            val trackMatch = "None"
             Log.d(TAG, "Shazam Match Return is: $trackMatch")
 
             // FIXME -- eventually this should be artist/song but rn just current recording index

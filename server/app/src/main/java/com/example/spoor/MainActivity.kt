@@ -229,6 +229,8 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         // Print the captured value
         unbindService(serviceConn)
 
+        //send web api to terminate session
+
         // Enable start button and disable stop button
         btnStart.isEnabled = true
         btnStop.isEnabled = false
