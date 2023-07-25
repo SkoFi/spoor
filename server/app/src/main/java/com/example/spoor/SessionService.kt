@@ -20,6 +20,10 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import retrofit2.Retrofit
 import java.util.*
 
@@ -100,6 +104,75 @@ class SessionService() : Service() {
     }
 
     private fun updateSession() {
+
+//        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeorNull())
+//
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = webService.updateSession()
+
+            withContext(Dispatchers.Main) {
+                if (response.isSuccessful) {
+                    val gson = GsonBuilder().setPrettyPrinting().create()
+                    val prettyJson = gson.toJson(
+                        JsonParser.parseString(
+                            response.body()
+                                ?.string()
+                        )
+                    )
+
+                    Log.d("Pretty Printed JSON :", prettyJson)
+
+                } else {
+
+                    Log.e("RETROFIT_ERROR", response.code().toString())
+
+                }
+            }
+        }
+    }
+
+    //TODO add found value into it
+    private fun addTrack() {
+
+        val jsonObject = JSONObject()
+            .put("track_info", JSONObject())
+        val trackInfo = jsonObject.getJSONObject("track_info")
+            .put("title", "dummy_title")
+            .put("artist", "dummy_artist")
+            .put("retrieval_id", "dummy_retrieval_id")
+            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+
+        // Convert JSONObject to String
+        val jsonObjectString = jsonObject.toString()
+
+        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeOrNull())
+//
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = webService.addTrack(requestBody)
+
+            withContext(Dispatchers.Main) {
+                if (response.isSuccessful) {
+                    val gson = GsonBuilder().setPrettyPrinting().create()
+                    val prettyJson = gson.toJson(
+                        JsonParser.parseString(
+                            response.body()
+                                ?.string()
+                        )
+                    )
+
+                    Log.d("Pretty Printed JSON :", prettyJson)
+
+                } else {
+
+                    Log.e("RETROFIT_ERROR", response.code().toString())
+
+                }
+            }
+        }
+    }
+
+
+    private fun addPlaylist() {
 
 //        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeorNull())
 //
@@ -233,6 +306,9 @@ class SessionService() : Service() {
             Log.d(TAG, "Main - Shazam-ing")
 //            recorder.playbackRecording()
             val bufferSample = recorder.getBufferData()
+            Log.d(TAG, "Buffer sample is ${bufferSample.contentToString()}")
+            Log.d(TAG, "Buffer size is ${bufferSample.size.toString()}")
+
 //            val bytelength = recorder.getSampleByteLength()
 //            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
             val trackMatch = "None"
@@ -240,6 +316,10 @@ class SessionService() : Service() {
 
             // FIXME -- eventually this should be artist/song but rn just current recording index
             Log.d(TAG, "Main - Spotify-ing")
+
+            Log.d(TAG, "Attempting to add track to web app session")
+            addTrack()
+
             // Callback to main activity. Note: this must be done in main thread
             GlobalScope.launch(Dispatchers.Main) {
                 callback?.getCurrentSong(recordingIndex.toString())
