@@ -128,15 +128,15 @@ class SessionService() : Service() {
         }
     }
     //TODO accept parameters
-    private fun addTrack() {
+    private fun addTrack(jsonObject: JSONObject) {
 
-        val jsonObject = JSONObject()
-            .put("track_info", JSONObject())
-        val trackInfo = jsonObject.getJSONObject("track_info")
-            .put("title", "dummy_title")
-            .put("artist", "dummy_artist")
-            .put("retrieval_id", "dummy_retrieval_id")
-            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+//        val jsonObject = JSONObject()
+//            .put("track_info", JSONObject())
+//        val trackInfo = jsonObject.getJSONObject("track_info")
+//            .put("title", "dummy_title")
+//            .put("artist", "dummy_artist")
+//            .put("retrieval_id", "dummy_retrieval_id")
+//            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
 
         // Convert JSONObject to String
         val jsonObjectString = jsonObject.toString()
@@ -168,13 +168,14 @@ class SessionService() : Service() {
     }
 
 
-    private fun addPlaylist() {
-        val jsonObject = JSONObject()
-            .put("playlist", JSONObject())
-        val playlistInfo = jsonObject.getJSONObject("playlist")
-            .put("name", "dummy_name")
-            .put("retrieval_id", "dummy_retrieval_id")
-            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+    private fun addPlaylist(jsonObject: JSONObject) {
+        
+//        val jsonObject = JSONObject()
+//            .put("playlist", JSONObject())
+//        val playlistInfo = jsonObject.getJSONObject("playlist")
+//            .put("name", "dummy_name")
+//            .put("retrieval_id", "dummy_retrieval_id")
+//            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
 
         // Convert JSONObject to String
         val jsonObjectString = jsonObject.toString()
@@ -322,7 +323,16 @@ class SessionService() : Service() {
             Log.d(TAG, "Main - Spotify-ing")
 
             Log.d(TAG, "Attempting to add track to web app session")
-            addTrack()
+            // Will be filled with Spotify track information
+            val jsonObject = JSONObject()
+                .put("track_info", JSONObject())
+            val trackInfo = jsonObject.getJSONObject("track_info")
+                .put("title", "dummy_title")
+                .put("artist", "dummy_artist")
+                .put("retrieval_id", "dummy_retrieval_id")
+                .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+
+            addTrack(jsonObject)
 
             // Callback to main activity. Note: this must be done in main thread
             GlobalScope.launch(Dispatchers.Main) {
