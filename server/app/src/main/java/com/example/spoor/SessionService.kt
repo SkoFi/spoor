@@ -12,11 +12,19 @@ import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import retrofit2.Retrofit
 import java.util.*
 
 
@@ -43,6 +51,7 @@ class SessionService() : Service() {
     private lateinit var recorderType: String
     private lateinit var recorder: RecorderClass
     private lateinit var shazamSession: ShazamKitClass
+    private lateinit var webService: SpoorWeb
 
     val jsonChannel = Channel<String>()
 
@@ -74,10 +83,130 @@ class SessionService() : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d(TAG, "Attempting to end web app session")
+
+        // Send PUT Request to web app toggling session
+        updateSession()
+
         Log.d(TAG, "Destroyed")
 
         recorder.stopRecording()
     }
+
+    //// API Functions
+    private fun buildWebSession() {
+        val retrofit = Retrofit.Builder()
+            .baseUrl("https://king-prawn-app-q8tj5.ondigitalocean.app/")
+            .build()
+
+        webService = retrofit.create(SpoorWeb::class.java)
+    }
+
+    private fun updateSession() {
+
+    CoroutineScope(Dispatchers.IO).launch {
+            val response = webService.updateSession()
+
+            withContext(Dispatchers.Main) {
+                if (response.isSuccessful) {
+                    val gson = GsonBuilder().setPrettyPrinting().create()
+                    val prettyJson = gson.toJson(
+                        JsonParser.parseString(
+                            response.body()
+                                ?.string()
+                        )
+                    )
+
+                    Log.d("Pretty Printed JSON :", prettyJson)
+
+                } else {
+
+                    Log.e("RETROFIT_ERROR", response.code().toString())
+
+                }
+            }
+        }
+    }
+    //TODO accept parameters
+    private fun addTrack(jsonObject: JSONObject) {
+
+//        val jsonObject = JSONObject()
+//            .put("track_info", JSONObject())
+//        val trackInfo = jsonObject.getJSONObject("track_info")
+//            .put("title", "dummy_title")
+//            .put("artist", "dummy_artist")
+//            .put("retrieval_id", "dummy_retrieval_id")
+//            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+
+        // Convert JSONObject to String
+        val jsonObjectString = jsonObject.toString()
+
+        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeOrNull())
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = webService.addTrack(requestBody)
+
+            withContext(Dispatchers.Main) {
+                if (response.isSuccessful) {
+                    val gson = GsonBuilder().setPrettyPrinting().create()
+                    val prettyJson = gson.toJson(
+                        JsonParser.parseString(
+                            response.body()
+                                ?.string()
+                        )
+                    )
+
+                    Log.d(TAG, "Response is : $prettyJson")
+
+                } else {
+
+                    Log.e(TAG, "RETROFIT_ERROR : ${response.body()}")
+
+                }
+            }
+        }
+    }
+
+
+    private fun addPlaylist(jsonObject: JSONObject) {
+        
+//        val jsonObject = JSONObject()
+//            .put("playlist", JSONObject())
+//        val playlistInfo = jsonObject.getJSONObject("playlist")
+//            .put("name", "dummy_name")
+//            .put("retrieval_id", "dummy_retrieval_id")
+//            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+
+        // Convert JSONObject to String
+        val jsonObjectString = jsonObject.toString()
+
+        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeOrNull())
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = webService.addPlaylist(requestBody)
+
+            withContext(Dispatchers.Main) {
+                if (response.isSuccessful) {
+                    val gson = GsonBuilder().setPrettyPrinting().create()
+                    val prettyJson = gson.toJson(
+                        JsonParser.parseString(
+                            response.body()
+                                ?.string()
+                        )
+                    )
+
+                    Log.d(TAG, "Response is : $prettyJson")
+
+                } else {
+
+                    Log.e(TAG, "RETROFIT_ERROR : ${response.body()}")
+
+                }
+            }
+        }
+    }
+
+
 
     //// Custom Functions
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -153,6 +282,14 @@ class SessionService() : Service() {
         // Generate a notification that the app is running in the background
         launchNotification()
 
+        //build connection to spoor web app
+        buildWebSession()
+
+
+        Log.d(TAG, "Attempting to start web app session")
+        // Send PUT Request to web app toggling session
+        updateSession()
+
         // Generate ShazamKitClass to enable a streaming session for our recording
         shazamSession = ShazamKitClass()
         // TODO add developer token class
@@ -166,7 +303,7 @@ class SessionService() : Service() {
 
 
         // Main Session Loop
-        while (true) {
+        while (recorder.currentlyRecording()) {
             Log.d(TAG, "Main - Collecting Sample")
             withContext(Dispatchers.IO) { recorder.collectSample() }
             val recordingIndex = recorder.getCurrRecordingIndex()
@@ -175,12 +312,28 @@ class SessionService() : Service() {
             Log.d(TAG, "Main - Shazam-ing")
 //            recorder.playbackRecording()
             val bufferSample = recorder.getBufferData()
+            Log.d(TAG, "Buffer sample is ${bufferSample.contentToString()}")
+            Log.d(TAG, "Buffer size is ${bufferSample.size.toString()}")
+
 //            val bytelength = recorder.getSampleByteLength()
             val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
             Log.d(TAG, "Shazam Match Return is: $trackMatch")
 
             // FIXME -- eventually this should be artist/song but rn just current recording index
             Log.d(TAG, "Main - Spotify-ing")
+
+            Log.d(TAG, "Attempting to add track to web app session")
+            // Will be filled with Spotify track information
+            val jsonObject = JSONObject()
+                .put("track_info", JSONObject())
+            val trackInfo = jsonObject.getJSONObject("track_info")
+                .put("title", "dummy_title")
+                .put("artist", "dummy_artist")
+                .put("retrieval_id", "dummy_retrieval_id")
+                .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+
+            addTrack(jsonObject)
+
             // Callback to main activity. Note: this must be done in main thread
             GlobalScope.launch(Dispatchers.Main) {
                 callback?.getCurrentSong(recordingIndex.toString())
