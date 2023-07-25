@@ -85,7 +85,6 @@ class SessionService() : Service() {
         super.onDestroy()
         Log.d(TAG, "Attempting to end web app session")
 
-        // TODO update session API (not working)
         // Send PUT Request to web app toggling session
         updateSession()
 
@@ -105,9 +104,7 @@ class SessionService() : Service() {
 
     private fun updateSession() {
 
-//        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeorNull())
-//
-        CoroutineScope(Dispatchers.IO).launch {
+    CoroutineScope(Dispatchers.IO).launch {
             val response = webService.updateSession()
 
             withContext(Dispatchers.Main) {
@@ -130,8 +127,7 @@ class SessionService() : Service() {
             }
         }
     }
-
-    //TODO add found value into it
+    //TODO accept parameters
     private fun addTrack() {
 
         val jsonObject = JSONObject()
@@ -146,7 +142,7 @@ class SessionService() : Service() {
         val jsonObjectString = jsonObject.toString()
 
         val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeOrNull())
-//
+
         CoroutineScope(Dispatchers.IO).launch {
             val response = webService.addTrack(requestBody)
 
@@ -160,11 +156,11 @@ class SessionService() : Service() {
                         )
                     )
 
-                    Log.d("Pretty Printed JSON :", prettyJson)
+                    Log.d(TAG, "Response is : $prettyJson")
 
                 } else {
 
-                    Log.e("RETROFIT_ERROR", response.code().toString())
+                    Log.e(TAG, "RETROFIT_ERROR : ${response.body()}")
 
                 }
             }
@@ -173,11 +169,20 @@ class SessionService() : Service() {
 
 
     private fun addPlaylist() {
+        val jsonObject = JSONObject()
+            .put("playlist", JSONObject())
+        val playlistInfo = jsonObject.getJSONObject("playlist")
+            .put("name", "dummy_name")
+            .put("retrieval_id", "dummy_retrieval_id")
+            .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
 
-//        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeorNull())
-//
+        // Convert JSONObject to String
+        val jsonObjectString = jsonObject.toString()
+
+        val requestBody = jsonObjectString.toRequestBody("application/json".toMediaTypeOrNull())
+
         CoroutineScope(Dispatchers.IO).launch {
-            val response = webService.updateSession()
+            val response = webService.addPlaylist(requestBody)
 
             withContext(Dispatchers.Main) {
                 if (response.isSuccessful) {
@@ -189,11 +194,11 @@ class SessionService() : Service() {
                         )
                     )
 
-                    Log.d("Pretty Printed JSON :", prettyJson)
+                    Log.d(TAG, "Response is : $prettyJson")
 
                 } else {
 
-                    Log.e("RETROFIT_ERROR", response.code().toString())
+                    Log.e(TAG, "RETROFIT_ERROR : ${response.body()}")
 
                 }
             }
