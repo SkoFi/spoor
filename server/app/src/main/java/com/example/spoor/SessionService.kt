@@ -302,7 +302,7 @@ class SessionService() : Service() {
 
 
         // Main Session Loop
-        while (true) {
+        while (recorder.currentlyRecording()) {
             Log.d(TAG, "Main - Collecting Sample")
             withContext(Dispatchers.IO) { recorder.collectSample() }
             val recordingIndex = recorder.getCurrRecordingIndex()
@@ -315,8 +315,7 @@ class SessionService() : Service() {
             Log.d(TAG, "Buffer size is ${bufferSample.size.toString()}")
 
 //            val bytelength = recorder.getSampleByteLength()
-//            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
-            val trackMatch = "None"
+            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
             Log.d(TAG, "Shazam Match Return is: $trackMatch")
 
             // FIXME -- eventually this should be artist/song but rn just current recording index

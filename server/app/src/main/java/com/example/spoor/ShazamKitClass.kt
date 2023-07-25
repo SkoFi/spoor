@@ -78,8 +78,9 @@ class ShazamKitClass {
         }
     }
 
-    fun matchBuffer(bufferSample: ByteArray, sampleByteLength: Int) : String {
-
+    suspend fun matchBuffer(bufferSample: ByteArray, sampleByteLength: Int) : String {
+        signatureGenerator = (ShazamKit.createSignatureGenerator(AudioSampleRateInHz.SAMPLE_RATE_48000) as ShazamKitResult.Success).data
+//        signatureGenerator.append(monoBuffer.array(), monoBuffer.position(), System.currentTimeMillis()
         signatureGenerator?.append(bufferSample, sampleByteLength, System.currentTimeMillis())
         val signature = signatureGenerator?.generateSignature()
         var returnVal = ""
