@@ -10,6 +10,8 @@ import okhttp3.FormBody
 import okhttp3.Request
 import okhttp3.OkHttpClient
 import android.util.Base64
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
 import kotlinx.coroutines.*
 import org.json.JSONObject
 
@@ -64,6 +66,8 @@ class SpotifyAuthActivity : Activity() {
         Log.d("SpotifyActivity", "Got access code: $accessCode")
     }
 
+    //given auth/access token BQB7bcXE6sIVzeoCtV5eida4QwXkJ7IqYYSsfUyuD3GMj6Pu0UA0w6MKSug2ubGErfmSDR9nWt_AERAAS-A-MYWhp9NRS_qUQreoYJr5XeTswpf7yaOxsTXpCu9A21pftt7Zy5XucmxzNw2RXMg4E-CGOKrk5RqSLHs7AClXh4ggKr0yn8-lAEiCURc1S_2_24_3sG9Yqfr_B-6HuDyKC0GqQIvk
+    //used auth/access token BQB7bcXE6sIVzeoCtV5eida4QwXkJ7IqYYSsfUyuD3GMj6Pu0UA0w6MKSug2ubGErfmSDR9nWt_AERAAS-A-MYWhp9NRS_qUQreoYJr5XeTswpf7yaOxsTXpCu9A21pftt7Zy5XucmxzNw2RXMg4E-CGOKrk5RqSLHs7AClXh4ggKr0yn8-lAEiCURc1S_2_24_3sG9Yqfr_B-6HuDyKC0GqQIvk
     private suspend fun requestAccessToken(accessCode: String) {
         // Request access token, given access code
         Log.d(TAG, "requestAccessToken start")
@@ -96,8 +100,12 @@ class SpotifyAuthActivity : Activity() {
                 val json = JSONObject(response.body!!.string())
                 accessToken = json.getString("access_token")
                 refreshToken = json.getString("refresh_token")
+                val expiresIn = json.getInt("expires_in")
 
                 Log.d(TAG, "Initial Auth - Got Access Token! $accessToken")
+                Log.d(TAG, " REQUEST TOKEN - WHAT IS THE REFRESHTOKEN $refreshToken")
+                Log.d(TAG, " REQUEST TOKEN - WHAT IS THE EXPIRES IN $expiresIn")
+
                 // Storing the access token
                 editor!!.putString("SPOTIFY_ACCESS_TOKEN", accessToken)
                 editor!!.putString("SPOTIFY_REFRESH_TOKEN", refreshToken)
@@ -153,11 +161,23 @@ class SpotifyAuthActivity : Activity() {
         val authKey = Base64.encodeToString(authHeader.toByteArray(), Base64.NO_WRAP)
         val refreshToken = preferences!!.getString("SPOTIFY_REFRESH_TOKEN", "Undefined")
 
+        if (refreshToken != "Undefined") {
+            Log.d(TAG, "refreshAccessToken is : $refreshToken")
+        } else {
+            Log.d(TAG, "refreshAccessToken is undefined")
+        }
+
+
+        Log.d(TAG, "Starting form builder")
+
+
         val requestBody = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", refreshToken!!)
             .add("redirect_uri", REDIRECT_URI)
             .build()
+
+        Log.d(TAG, " Starting Request Builder")
 
         val request = Request.Builder()
             .url(url)
@@ -168,29 +188,43 @@ class SpotifyAuthActivity : Activity() {
 
         // use a coroutine to execute the request asynchronously
         return withContext(Dispatchers.IO) {
+            Log.d(TAG, "Calling Spotify Refresh API coroutine")
             // create a new call and enqueue it
             val call = client.newCall(request)
             val response = call.execute()
 
             // check if the request was successful
-            (if (response.isSuccessful) {
+            Log.d(TAG, "Are you the problem?")
+            if (response.isSuccessful) {
+                Log.d(TAG, "Response is successful?")
                 // return the response body as a string
                 accessToken = JSONObject(response.body!!.string()).getString("access_token")
+//                val expiresIn = JSONObject(response.body!!.string()).getInt("expires_in")
+//                val gson = GsonBuilder().setPrettyPrinting().create()
+//                val prettyJson = gson.toJson(
+//                    JsonParser.parseString(
+//                        response.body
+//                            !!.string()
+//                    )
+//                )
 
+//                Log.d("Spotify Refresh Response body :", prettyJson)
                 Log.d(TAG, "Refresh - Got Access Token! " + accessToken)
+//                Log.d(TAG, "REFRESH TOKEN - WHAT IS THE EXPIRES IN $expiresIn")
                 // Storing the access token
                 editor!!.putString("SPOTIFY_ACCESS_TOKEN", accessToken)
                 editor!!.commit()
             } else {
+                Log.d(TAG, "response failed")
                 // throw an exception with the response message
                 throw IOException("Unexpected code $response")
-            })
+            }
         }
     }
 
     override fun onStart() {
         super.onStart()
-        Log.d(TAG, "Starting")
+        Log.d(TAG, "Spotify Auth Starting")
 
         preferences = getSharedPreferences("com.example.recscollector", MODE_PRIVATE)
         editor = preferences!!.edit()
@@ -199,6 +233,10 @@ class SpotifyAuthActivity : Activity() {
         refreshToken = preferences!!.getString("SPOTIFY_REFRESH_TOKEN", "Undefined").toString()
         // Never acquired -- go through with first time authorization
         if (accessToken == "Undefined" || refreshToken == "Undefined") {
+            Log.d(TAG, "Access Token or Refresh Token is undefined")
+            Log.d(TAG, "Access Token is : $accessToken")
+            Log.d(TAG, "Refresh Token is : $refreshToken")
+
             requestAccessCode()
 
             // Acquire Access Token First Time

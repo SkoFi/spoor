@@ -79,8 +79,10 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         // Launch request for required permissions
         requestPermissions(REQUIRED_PERMISSIONS, PERMISSIONS_REQ_CODE)
 
+        Log.d(TAG, "About to run handler for Spotify login")
         // Handler for Spotify Login
         val spotifyLoginHandler = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
+            Log.d(TAG, "Checking result from activityresult register: ${result.resultCode.toString() + " " + result.data.toString()}")
             if (result.resultCode == RESULT_OK && result.data is Intent) {
                 // Get return from Auth Activity
                 val returnedResult = result.data.toString()
@@ -89,11 +91,16 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
                 // Load User ID and Access Token
                 val userId = prefs.getString("SPOTIFY_USER_ID", null)
                 val accessToken = prefs.getString("SPOTIFY_ACCESS_TOKEN", null)
+                Log.d(TAG, "userID: $userId")
+                Log.d(TAG, "accesToken: $accessToken")
                 if (userId != null && accessToken != null) {
                     spotifyApi.setTokens(userId, accessToken)
+                    Log.d(TAG, "set Tokens successful")
                 } else {
                     throw Exception("Failed to get userId and/or AccessToken: $userId $accessToken")
                 }
+            } else {
+                Log.d(TAG, "Something went wrong with activityresult register: ${result.resultCode.toString() + " " + result.data.toString()}")
             }
         }
         // Login to Spotify

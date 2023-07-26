@@ -42,7 +42,6 @@ class ShazamKitClass {
 
 
             Log.d(TAG, "attempting to launch streaming session in coroutine")
-
             coroutineScope.launch {
                 when (val result =  ShazamKit.createSession(catalog)) {
                     is ShazamKitResult.Success -> {
@@ -57,6 +56,8 @@ class ShazamKitClass {
                         result.reason.message?.let { onError(it) }
                     }
                 }
+
+                // TODO pretty sure this is redundant on single tracks since we're recreating ever time anyway. comment out and test
                 Log.d(TAG, "Attempted to create signature generator in coroutine")
                 when (val result = ShazamKit.createSignatureGenerator(AudioSampleRateInHz.SAMPLE_RATE_48000)) {
                     is ShazamKitResult.Success -> {
@@ -78,44 +79,50 @@ class ShazamKitClass {
         }
     }
 
-    fun matchBuffer(bufferSample: ByteArray, sampleByteLength: Int) : String {
+    suspend fun matchBuffer(bufferSample: ByteArray, sampleByteLength: Int) : JSONArray? {
+        // Create our signature generator to make a match
+        signatureGenerator = (ShazamKit.createSignatureGenerator(AudioSampleRateInHz.SAMPLE_RATE_48000) as ShazamKitResult.Success).data
 
+        // Adding our buffer sample to the signature generator to test matching
         signatureGenerator?.append(bufferSample, sampleByteLength, System.currentTimeMillis())
         val signature = signatureGenerator?.generateSignature()
-        var returnVal = ""
-        coroutineScope.launch {
-            trackSession?.let {
-                signature?.let {
-                    val matchResult = trackSession?.match(signature)
-                    try {
-                        when (matchResult) {
-                            is MatchResult.Match -> {
-                                Log.d(TAG, matchResult.toJsonString())
-                                returnVal = matchResult.toJsonString()
-                            }
+        var returnVal : JSONArray? = null
+//        coroutineScope.launch {
+        trackSession?.let {
+            signature?.let {
+                val matchResult = trackSession?.match(signature)
+                try {
+                    when (matchResult) {
+                        is MatchResult.Match -> {
+                            Log.d(TAG, matchResult.toJsonArray().toString())
+                            returnVal = matchResult.toJsonArray()
+                            Log.d(TAG, "returnVal after we just updated: $returnVal")
 
-                            is MatchResult.NoMatch -> Log.d(
-                                TAG,
-                                "Match Not Found"
-                            )
-
-                            is MatchResult.Error -> Log.d(
-                                TAG,
-                                "Error encountered",
-                                matchResult.exception
-                            )
-                            else -> Log.d(
-                                TAG,
-                                "go f yourself, don't know why I need to add this"
-                            )
                         }
 
-                    } catch (e: Exception) {
-                        e.message?.let { onError(it) }
+                        is MatchResult.NoMatch -> Log.d(
+                            TAG,
+                            "Match Not Found"
+                        )
+
+                        is MatchResult.Error -> Log.d(
+                            TAG,
+                            "Error encountered",
+                            matchResult.exception
+                        )
+                        else -> Log.d(
+                            TAG,
+                            "don't know why I need to add this"
+                        )
                     }
+
+                } catch (e: Exception) {
+                    e.message?.let { onError(it) }
                 }
             }
         }
+//        }
+        Log.d(TAG, "returnVal before we return: $returnVal")
         return returnVal
     }
 
@@ -124,7 +131,7 @@ class ShazamKitClass {
 
 
 
-    //Max - Used for streaming recording session, to be revisited later
+    //TODO Max - Used for streaming recording session, to be revisited later
     fun configureShazamKitStreamingSession(
         developerToken: String?,
     ) {
@@ -170,7 +177,7 @@ class ShazamKitClass {
                         try{
                             when (result) {
                                 is MatchResult.Match -> {
-                                    Log.d(TAG, result.toJsonString())
+                                    Log.d(TAG, result.toJsonArray().toString())
 
                                 }
                                 is MatchResult.NoMatch -> Log.d(TAG,
@@ -215,7 +222,7 @@ class ShazamKitClass {
 
 }
 
-fun MatchResult.Match.toJsonString(): String {
+fun MatchResult.Match.toJsonArray(): JSONArray {
     val itemJsonArray = JSONArray()
     this.matchedMediaItems.forEach { item ->
         val itemJsonObject = JSONObject()
@@ -241,6 +248,6 @@ fun MatchResult.Match.toJsonString(): String {
         itemJsonObject.put("isrc", item.isrc)
         itemJsonArray.put(itemJsonObject)
     }
-    return itemJsonArray.toString()
+    return itemJsonArray
 
 }
