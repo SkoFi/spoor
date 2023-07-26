@@ -20,6 +20,9 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -95,6 +98,9 @@ class SessionService() : Service() {
 
     //// API Functions
     private fun buildWebSession() {
+        Log.d(TAG, "Building Web App Session")
+
+
         val retrofit = Retrofit.Builder()
             .baseUrl("https://king-prawn-app-q8tj5.ondigitalocean.app/")
             .build()
@@ -104,11 +110,14 @@ class SessionService() : Service() {
 
     private fun updateSession() {
 
-    CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
+            Log.d(TAG, "Calling Update Session API on Web App")
+
             val response = webService.updateSession()
 
             withContext(Dispatchers.Main) {
                 if (response.isSuccessful) {
+                    Log.d(TAG, "Successfully Updated Session for User 1")
                     val gson = GsonBuilder().setPrettyPrinting().create()
                     val prettyJson = gson.toJson(
                         JsonParser.parseString(
@@ -117,7 +126,7 @@ class SessionService() : Service() {
                         )
                     )
 
-                    Log.d("Pretty Printed JSON :", prettyJson)
+                    Log.d("Updated Session Response :", prettyJson)
 
                 } else {
 
@@ -169,7 +178,7 @@ class SessionService() : Service() {
 
 
     private fun addPlaylist(jsonObject: JSONObject) {
-        
+
 //        val jsonObject = JSONObject()
 //            .put("playlist", JSONObject())
 //        val playlistInfo = jsonObject.getJSONObject("playlist")
@@ -228,8 +237,6 @@ class SessionService() : Service() {
         recorderType = recorderTypeIn
         buildRecorder(recorderType)
 
-        //launchNotification()
-
         // For Media Projections, request approval
         if (recorderType == "Phone_Output"){
             requestRecordingPermission(handler)
@@ -276,7 +283,7 @@ class SessionService() : Service() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    suspend fun startSession() {
+    suspend fun startSession(spotifyApi: SpotifyApi) {
         Log.d(TAG, "Starting Session")
 
         // Generate a notification that the app is running in the background
@@ -295,10 +302,12 @@ class SessionService() : Service() {
         // TODO add developer token class
 //        val developerToken = null
         val developerToken = "eyJhbGciOiJFUzI1NiIsImtpZCI6IkFBRDk5Wk5GNUciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiI1UlBGQTI2TTkzIiwiaWF0IjoxNjg4OTQ0OTg3LCJleHAiOjE3MDQ1MDA1ODd9.RpPTVa94vp8ZxX39J2DG0ocxdqf-KhkNjlWLaSRl-njushOfWhm2YWhSfpr23dAVyynfCfr3qy_gi9tioK6e5w"
+        // This will generate a ShazamKit session using our developer token to access the Apple Music Catalog
         shazamSession.configureShazamKitSession(developerToken)
 
         recorder.startRecording()
 
+        // TODO this will allow for a continuous stream of recording, will be better use of API once we figure out how to access information laterally
 //        shazamSession.startRecordingThread(recorder)
 
 
@@ -309,34 +318,64 @@ class SessionService() : Service() {
             val recordingIndex = recorder.getCurrRecordingIndex()
             Log.d(TAG, "Buffer Data: ${recordingBuffer.contentToString()}")
 
-            Log.d(TAG, "Main - Shazam-ing")
+            Log.d(TAG, "(( Main - Shazam-ing ))")
 //            recorder.playbackRecording()
             val bufferSample = recorder.getBufferData()
-            Log.d(TAG, "Buffer sample is ${bufferSample.contentToString()}")
-            Log.d(TAG, "Buffer size is ${bufferSample.size.toString()}")
+//            Log.d(TAG, "Buffer sample is ${bufferSample.contentToString()}")
+//            Log.d(TAG, "Buffer size is ${bufferSample.size}")
 
 //            val bytelength = recorder.getSampleByteLength()
-            val trackMatch = shazamSession.matchBuffer(bufferSample, bufferSample.size)
-            Log.d(TAG, "Shazam Match Return is: $trackMatch")
+            // Shazam - Single track identifier)
+            val trackMatchArray = shazamSession.matchBuffer(bufferSample, bufferSample.size)
+            Log.d(TAG, "Shazam Match Return is: ${trackMatchArray?.toString()}")
+
+            Log.d(TAG, "Assessing whether we need to call spotify")
+            if (trackMatchArray == null) {
+                Log.d(TAG, "No track found by shazam, ending cycle")
+                continue
+            }
+
+            Log.d(TAG, "Shazam Response is : ${trackMatchArray.getJSONObject(0)}")
+
+
+            val trackMatch = trackMatchArray.getJSONObject(0)
+            val artist = trackMatch.getString("artist")
+            val songTitle = trackMatch.getString("title")
+
+
+
+//            val artist = "Spellspellspell"
+//            val songTitle = "I Wanna"
 
             // FIXME -- eventually this should be artist/song but rn just current recording index
-            Log.d(TAG, "Main - Spotify-ing")
+            Log.d(TAG, "(( Main - Spotify-ing ))")
+            val spotifyTrackJSON = spotifyApi.getSongUri(artist, songTitle)
+            if (spotifyTrackJSON == null){
+                Log.d(TAG, "No track found on Spotify for match ${songTitle + " by " + artist } , ending cycle")
+                continue
+            } else {
+                Log.d(TAG, "Spotify Response is : ${spotifyTrackJSON.toString()}")
+            }
+
 
             Log.d(TAG, "Attempting to add track to web app session")
             // Will be filled with Spotify track information
             val jsonObject = JSONObject()
                 .put("track_info", JSONObject())
             val trackInfo = jsonObject.getJSONObject("track_info")
-                .put("title", "dummy_title")
-                .put("artist", "dummy_artist")
-                .put("retrieval_id", "dummy_retrieval_id")
-                .put("redirect_url", "https://open.spotify.com/track/4OtqragtOuKh41rBNnFXuK?si=22bb6b0642a2447f")
+                .put("title", songTitle)
+                .put("artist", artist)
+                .put("retrieval_id", spotifyTrackJSON.getString("id"))
+                .put("redirect_url", spotifyTrackJSON.getJSONObject("external_urls").getString("spotify"))
+
+            Log.d(TAG, "Add Track Request is : ${jsonObject.toString()}")
+
 
             addTrack(jsonObject)
 
             // Callback to main activity. Note: this must be done in main thread
             GlobalScope.launch(Dispatchers.Main) {
-                callback?.getCurrentSong(recordingIndex.toString())
+                callback?.getCurrentSong("(${recordingIndex.toString()}) $artist: $songTitle")
             }
         }
     }

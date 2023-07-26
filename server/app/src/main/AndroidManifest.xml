@@ -16,6 +16,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Spoor"
         tools:targetApi="31">
+        <activity
+            android:name=".SpotifyAuthActivity"
+            android:exported="false"
+            android:label="@string/title_activity_spotify_auth"
+            android:theme="@style/Theme.Spoor.NoActionBar" />
 
         <service
             android:name=".SessionService"
@@ -32,4 +37,5 @@
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
