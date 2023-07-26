@@ -161,24 +161,12 @@ class SpotifyAuthActivity : Activity() {
         val authKey = Base64.encodeToString(authHeader.toByteArray(), Base64.NO_WRAP)
         val refreshToken = preferences!!.getString("SPOTIFY_REFRESH_TOKEN", "Undefined")
 
-        if (refreshToken != "Undefined") {
-            Log.d(TAG, "refreshAccessToken is : $refreshToken")
-        } else {
-            Log.d(TAG, "refreshAccessToken is undefined")
-        }
-
-
-        Log.d(TAG, "Starting form builder")
-
-
         val requestBody = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", refreshToken!!)
             .add("redirect_uri", REDIRECT_URI)
             .build()
-
-        Log.d(TAG, " Starting Request Builder")
-
+        
         val request = Request.Builder()
             .url(url)
             .post(requestBody)
@@ -194,23 +182,11 @@ class SpotifyAuthActivity : Activity() {
             val response = call.execute()
 
             // check if the request was successful
-            Log.d(TAG, "Are you the problem?")
             if (response.isSuccessful) {
-                Log.d(TAG, "Response is successful?")
                 // return the response body as a string
                 accessToken = JSONObject(response.body!!.string()).getString("access_token")
-//                val expiresIn = JSONObject(response.body!!.string()).getInt("expires_in")
-//                val gson = GsonBuilder().setPrettyPrinting().create()
-//                val prettyJson = gson.toJson(
-//                    JsonParser.parseString(
-//                        response.body
-//                            !!.string()
-//                    )
-//                )
 
-//                Log.d("Spotify Refresh Response body :", prettyJson)
                 Log.d(TAG, "Refresh - Got Access Token! " + accessToken)
-//                Log.d(TAG, "REFRESH TOKEN - WHAT IS THE EXPIRES IN $expiresIn")
                 // Storing the access token
                 editor!!.putString("SPOTIFY_ACCESS_TOKEN", accessToken)
                 editor!!.commit()

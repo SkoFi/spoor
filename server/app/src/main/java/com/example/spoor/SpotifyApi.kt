@@ -102,15 +102,11 @@ class SpotifyApi() {
         val searchUrl = "https://api.spotify.com/v1/search?q=${Uri.encode("$artistName $songTitle")}&type=track"
         Log.d(TAG, "Search URL: ${searchUrl}")
 
-        Log.d(TAG, "Auth token is: $authToken")
-
 
         val searchRequest = Request.Builder()
             .url(searchUrl)
             .addHeader("Authorization", "Bearer $authToken")
             .build()
-
-        Log.d(TAG, "SearchRequest is: $searchRequest")
 
 
         val searchResponse: Response = okHttpClient.newCall(searchRequest).execute()
