@@ -3,6 +3,7 @@ package com.example.spoor
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.icu.text.ListFormatter
 import android.media.*
 import android.media.projection.MediaProjectionManager
 import android.os.Binder
@@ -14,16 +15,8 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -55,6 +48,8 @@ class SessionService() : Service() {
     private lateinit var recorder: RecorderClass
     private lateinit var shazamSession: ShazamKitClass
     private lateinit var webService: SpoorWeb
+    private lateinit var spotifyApi: SpotifyApi
+    val trackListObj = mutableListOf<JSONObject>()
 
     val jsonChannel = Channel<String>()
 
@@ -91,9 +86,20 @@ class SessionService() : Service() {
         // Send PUT Request to web app toggling session
         updateSession()
 
-        Log.d(TAG, "Destroyed")
-
         recorder.stopRecording()
+
+        // Create Playlist
+        if (SharedVariables.createPlaylist) {
+            val playlistId = spotifyApi.createPlaylist(SharedVariables.sessionName, "Spoor auto-generated playlist")
+            val trackUris = mutableListOf<String>()
+            for (track in trackListObj) {
+                val songId = track.getString("redirect_url").split("/").last()
+                trackUris.add("spotify:track:$songId")
+            }
+            spotifyApi.addTracksToPlaylist(playlistId, trackUris)
+        }
+
+        Log.d(TAG, "Destroyed")
     }
 
     //// API Functions
@@ -176,7 +182,6 @@ class SessionService() : Service() {
         }
     }
 
-
     private fun addPlaylist(jsonObject: JSONObject) {
 
 //        val jsonObject = JSONObject()
@@ -214,8 +219,6 @@ class SessionService() : Service() {
             }
         }
     }
-
-
 
     //// Custom Functions
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -283,15 +286,16 @@ class SessionService() : Service() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    suspend fun startSession(spotifyApi: SpotifyApi) {
+    suspend fun startSession(spotifyApiIn: SpotifyApi) {
         Log.d(TAG, "Starting Session")
+
+        spotifyApi = spotifyApiIn
 
         // Generate a notification that the app is running in the background
         launchNotification()
 
         //build connection to spoor web app
         buildWebSession()
-
 
         Log.d(TAG, "Attempting to start web app session")
         // Send PUT Request to web app toggling session
@@ -310,8 +314,10 @@ class SessionService() : Service() {
         // TODO this will allow for a continuous stream of recording, will be better use of API once we figure out how to access information laterally
 //        shazamSession.startRecordingThread(recorder)
 
-
         // Main Session Loop
+        var trackListStr = mutableListOf<String>()
+        var lastTrackId: String? = null
+        var trackListCnt = 0
         while (recorder.currentlyRecording()) {
             Log.d(TAG, "Main - Collecting Sample")
             withContext(Dispatchers.IO) { recorder.collectSample() }
@@ -334,29 +340,20 @@ class SessionService() : Service() {
                 Log.d(TAG, "No track found by shazam, ending cycle")
                 continue
             }
-
             Log.d(TAG, "Shazam Response is : ${trackMatchArray.getJSONObject(0)}")
-
-
             val trackMatch = trackMatchArray.getJSONObject(0)
             val artist = trackMatch.getString("artist")
             val songTitle = trackMatch.getString("title")
-
-
-
-//            val artist = "Spellspellspell"
-//            val songTitle = "I Wanna"
 
             // FIXME -- eventually this should be artist/song but rn just current recording index
             Log.d(TAG, "(( Main - Spotify-ing ))")
             val spotifyTrackJSON = spotifyApi.getSongUri(artist, songTitle)
             if (spotifyTrackJSON == null){
-                Log.d(TAG, "No track found on Spotify for match ${songTitle + " by " + artist } , ending cycle")
+                Log.d(TAG, "No track found on Spotify for match $songTitle by $artist , ending cycle")
                 continue
             } else {
                 Log.d(TAG, "Spotify Response is : ${spotifyTrackJSON.toString()}")
             }
-
 
             Log.d(TAG, "Attempting to add track to web app session")
             // Will be filled with Spotify track information
@@ -368,15 +365,27 @@ class SessionService() : Service() {
                 .put("retrieval_id", spotifyTrackJSON.getString("id"))
                 .put("redirect_url", spotifyTrackJSON.getJSONObject("external_urls").getString("spotify"))
 
-            Log.d(TAG, "Add Track Request is : ${jsonObject.toString()}")
+            // If unique, append to song list and add to web app
+            if (spotifyTrackJSON.getString("id") != lastTrackId) {
+                trackListCnt += 1
 
+                // Add to full object list and string (for presentation)
+                trackListObj.add(trackInfo)
+                trackListStr.add("($trackListCnt) $artist: $songTitle")
 
-            addTrack(jsonObject)
+                // Add to web app
+                Log.d(TAG, "Add Track Request is : $jsonObject")
+                addTrack(jsonObject)
 
-            // Callback to main activity. Note: this must be done in main thread
-            GlobalScope.launch(Dispatchers.Main) {
-                callback?.getCurrentSong("(${recordingIndex.toString()}) $artist: $songTitle")
+                // Publish to server UI via Callback to main activity (note: done on main thread)
+                GlobalScope.launch(Dispatchers.Main) {
+                    callback?.getCurrentSong(trackListStr.joinToString(separator="\n"))
+                }
+
+            } else {
+                Log.d(TAG, "Redundant track (skipping)")
             }
+            lastTrackId = spotifyTrackJSON.getString("id")
         }
     }
 }

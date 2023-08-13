@@ -67,6 +67,36 @@
             android:padding="16dp" />
 
         <!-- Second row -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:minHeight="48dp"
+            android:orientation="horizontal">
+
+            <Switch
+                android:id="@+id/playlistSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:paddingLeft="16dp"
+                android:text="Create Playlist?"
+                android:onClick="onPlaylistSwitchToggle" />
+
+            <EditText
+                android:id="@+id/editTextSessionName"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:height="48dp"
+                android:ems="10"
+                android:hint="Session Name"
+                android:inputType="textPersonName"
+                android:paddingLeft="16dp"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -80,7 +110,7 @@
             android:text="Start Recording"
             android:onClick="onStartButtonClick" />
 
-        <Button
+            <Button
             android:id="@+id/stopButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -88,6 +118,7 @@
             android:text="Stop Recording"
             android:onClick="onStopButtonClick"/>
         </LinearLayout>
+
     </LinearLayout>
 
     <!-- Panel 3: Currently Playing -->

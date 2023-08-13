@@ -1,13 +1,15 @@
 package com.example.spoor
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.*
 import android.content.pm.PackageManager
-import android.media.projection.MediaProjectionManager
 import android.os.*
 import android.util.Log
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
+import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
@@ -16,7 +18,9 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.*
-import android.os.IBinder
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
 
 open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
     private val PERMISSIONS_REQ_CODE = 1
@@ -38,6 +42,8 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var tvCurrentlyPlaying: TextView
+    private lateinit var teSessionName: EditText
+    private lateinit var swPlaylist: Switch
     // Initialize Recorders
     private lateinit var recorder: RecorderClass
     private lateinit var micRecorder: MicRecorder
@@ -162,7 +168,9 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         btnUsb = findViewById(R.id.usbSelectButton)
         btnStart = findViewById(R.id.startButton)
         btnStop = findViewById(R.id.stopButton)
+        teSessionName = findViewById(R.id.editTextSessionName)
         tvCurrentlyPlaying = findViewById(R.id.tvCurrentlyPlaying)
+        swPlaylist = findViewById(R.id.playlistSwitch)
 
         // Initialize UI
         // Note: this should be consistent with the selectedRecorder variable
@@ -171,6 +179,10 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         btnMic.isEnabled = false
         btnPhoneOutput.isEnabled = true
         btnUsb.isEnabled = true
+        swPlaylist.isChecked = false
+        teSessionName.isEnabled = false
+
+        SharedVariables.createPlaylist = swPlaylist.isChecked
     }
     private fun permissionsGranted(): Boolean {
         /*
@@ -249,13 +261,49 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         btnUsb.isEnabled = false
     }
 
+    open fun showAlertDialog(view: View?, title: String, message: String) {
+        val alertDialogBuilder: AlertDialog.Builder = AlertDialog.Builder(this)
+
+        // Set the title and message
+        alertDialogBuilder.setTitle(title)
+        alertDialogBuilder.setMessage(message)
+
+        // Set positive button
+        alertDialogBuilder.setPositiveButton("OK",
+            DialogInterface.OnClickListener { dialog, which ->
+                // Do something when the "OK" button is clicked
+                dialog.dismiss() // Close the dialog
+            })
+
+        // Create and show the AlertDialog
+        val alertDialog: AlertDialog = alertDialogBuilder.create()
+        alertDialog.show()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun generateFullSessionName(rawName: String): String {
+        val currentDate = LocalDate.now()
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val formattedDate = currentDate.format(formatter)
+
+        return "[Spoor] $rawName $formattedDate"
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun onStartButtonClick(view: View) {
         Log.d(TAG, "Start button clicked")
+        if (swPlaylist.isChecked && teSessionName.text.toString() == "") {
+            showAlertDialog(view, "Session Name Uninitialized", "Enter name for session!")
+            return
+        }
+        // Save the entered Session name
+        SharedVariables.sessionName = generateFullSessionName(teSessionName.text.toString())
+
         bindService(sessionServiceIntent, serviceConn, Context.BIND_AUTO_CREATE)
 
         // Clear text, switch around the Start/Stop buttons
         tvCurrentlyPlaying.text = ""
+        teSessionName.isEnabled = false
         btnStart.isEnabled = false
         btnStop.isEnabled = true
     }
@@ -265,7 +313,17 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         unbindService(serviceConn)
 
         // Enable start button and disable stop button
+        teSessionName.setText("")
+        teSessionName.isEnabled = true
         btnStart.isEnabled = true
         btnStop.isEnabled = false
+    }
+
+    fun onPlaylistSwitchToggle(view: View) {
+        teSessionName.isEnabled = swPlaylist.isChecked
+        SharedVariables.createPlaylist = swPlaylist.isChecked
+        if (!swPlaylist.isChecked) {
+            teSessionName.setText("")
+        }
     }
 }
