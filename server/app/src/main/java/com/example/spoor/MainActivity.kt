@@ -44,11 +44,7 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
     private lateinit var tvCurrentlyPlaying: TextView
     private lateinit var teSessionName: EditText
     private lateinit var swPlaylist: Switch
-    // Initialize Recorders
-    private lateinit var recorder: RecorderClass
-    private lateinit var micRecorder: MicRecorder
-    private lateinit var usbRecorder: UsbRecorder
-    private lateinit var phoneOutputRecorder: PhoneOutputRecorder
+
     // Spotify Stuff
     private val spotifyApi = SpotifyApi()
     private lateinit var prefs: SharedPreferences
@@ -88,27 +84,28 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         Log.d(TAG, "About to run handler for Spotify login")
         // Handler for Spotify Login
         val spotifyLoginHandler = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result: ActivityResult ->
-            Log.d(TAG, "Checking result from activityresult register: ${result.resultCode.toString() + " " + result.data.toString()}")
-            if (result.resultCode == RESULT_OK && result.data is Intent) {
-                // Get return from Auth Activity
-                val returnedResult = result.data.toString()
-                Log.d(TAG, "Returned from Auth. Result: $returnedResult")
+            Log.d(TAG, "Checking result from activityresult register: ${result.resultCode} ${result.data.toString()}")
+            if (result.resultCode != RESULT_OK || result.data !is Intent) {
+                Log.d(TAG, "Something went wrong with activityresult register: ${result.resultCode} ${result.data.toString()}")
+            }
 
-                // Load User ID and Access Token
-                val userId = prefs.getString("SPOTIFY_USER_ID", null)
-                val accessToken = prefs.getString("SPOTIFY_ACCESS_TOKEN", null)
-                Log.d(TAG, "userID: $userId")
-                Log.d(TAG, "accesToken: $accessToken")
-                if (userId != null && accessToken != null) {
-                    spotifyApi.setTokens(userId, accessToken)
-                    Log.d(TAG, "set Tokens successful")
-                } else {
-                    throw Exception("Failed to get userId and/or AccessToken: $userId $accessToken")
-                }
+            // Get return from Auth Activity
+            val returnedResult = result.data.toString()
+            Log.d(TAG, "Returned from Auth. Result: $returnedResult")
+
+            // Load User ID and Access Token
+            val userId = prefs.getString("SPOTIFY_USER_ID", null)
+            val accessToken = prefs.getString("SPOTIFY_ACCESS_TOKEN", null)
+            Log.d(TAG, "userID: $userId")
+            Log.d(TAG, "accessToken: $accessToken")
+            if (userId != null && accessToken != null) {
+                spotifyApi.setTokens(userId, accessToken)
+                Log.d(TAG, "set Tokens successful")
             } else {
-                Log.d(TAG, "Something went wrong with activityresult register: ${result.resultCode.toString() + " " + result.data.toString()}")
+                throw Exception("Failed to get userId and/or AccessToken: $userId $accessToken")
             }
         }
+
         // Login to Spotify
         val spotifyLogin = Intent(this, SpotifyAuthActivity::class.java)
         spotifyLoginHandler.launch(spotifyLogin)
@@ -199,31 +196,6 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         }
         return allPermissionsGranted
         //} ?: false
-    }
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun switchRecorder(selectedRecorder: String = "Mic") {
-        /*
-        Selects Audio Source to use for recording based on selection
-        Input:
-        - audioCapToken (opt): Only for Phone_Output--Token received from Audio Capture request
-        - audioCapCode (opt): Only for Phone_Output--Code received from Audio Capture request
-        Parameter:
-        - recorder: Intent to start Service for selected recorder
-        - boundService: Service bound to this activity (used to call functions)
-        - serviceConn: Service Connection to the Recorder
-        Return:
-        - None
-        */
-        Log.d(TAG, "Configuring to $selectedRecorder")
-        if (selectedRecorder == "Mic") {
-            recorder = micRecorder
-        } else if (selectedRecorder == "Phone_Output") {
-            recorder = phoneOutputRecorder
-        } else if (selectedRecorder == "USB") {
-            recorder = usbRecorder
-        } else {
-            throw Exception("Unexpected Audio Source Selection!")
-        }
     }
 
     // Callbacks

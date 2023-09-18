@@ -3,7 +3,6 @@ package com.example.spoor
 import android.net.Uri
 import android.util.Log
 import com.google.gson.GsonBuilder
-import com.google.gson.JsonParser
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -14,7 +13,7 @@ import java.io.IOException
 
 class SpotifyApi() {
 
-    private val TAG = "SPOTIFY_REMOTE"
+    private val TAG = "SPOTIFY_API"
     private lateinit var userId: String
     private lateinit var authToken: String
     private val okHttpClient = OkHttpClient()
@@ -97,17 +96,36 @@ class SpotifyApi() {
         }
     }
 
+    /**
+     * Fetch uri of song currently playing for this User
+     */
+    fun getCurrentlyPlayingSong(): JSONObject? {
+        val searchUrl = "https://api.spotify.com/v1/me/player/currently-playing"
+
+        val request = Request.Builder()
+            .url(searchUrl)
+            .addHeader("Authorization", "Bearer $authToken")
+            .build()
+
+        val response: Response = okHttpClient.newCall(request).execute()
+
+        if (!response.isSuccessful) {
+            throw IOException("$TAG Unexpected code $response")
+        }
+
+        val json = JSONObject(response.body!!.string())
+        return json.getJSONObject("item")
+    }
+
     fun getSongUri(artistName: String, songTitle: String): JSONObject? {
         // FIXME might not work for multiple artists, look into
         val searchUrl = "https://api.spotify.com/v1/search?q=${Uri.encode("$artistName $songTitle")}&type=track"
         Log.d(TAG, "Search URL: ${searchUrl}")
 
-
         val searchRequest = Request.Builder()
             .url(searchUrl)
             .addHeader("Authorization", "Bearer $authToken")
             .build()
-
 
         val searchResponse: Response = okHttpClient.newCall(searchRequest).execute()
 
@@ -139,10 +157,9 @@ class SpotifyApi() {
 
     //// Public Wrappers
     fun setTokens(userIdSet: String, authTokenSet: String) {
-        Log.d(TAG, "Calling set tokens")
+        Log.d(TAG, "setTokens($userIdSet, $authTokenSet)")
         userId = userIdSet
         authToken = authTokenSet
-
     }
 
     fun createPlaylist(name: String, description: String): String {
