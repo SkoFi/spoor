@@ -150,6 +150,18 @@ class SessionService() : Service() {
         startForeground(SERVICE_ID, NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID).build())
     }
 
+    private suspend fun delayNextIteration(startTime: Long) {
+        val MIN_ITERATION_DURATION_MSECS = 12*1000
+
+        val endTime = System.currentTimeMillis()
+        val elapsedTime = endTime - startTime
+
+        val sleepTime = maxOf(0, MIN_ITERATION_DURATION_MSECS - elapsedTime)
+        withContext(Dispatchers.IO) {
+            Thread.sleep(sleepTime)
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.Q)
     suspend fun startSession(spotifyApiIn: SpotifyApi) {
         Log.d(TAG, "Starting Session")
@@ -169,15 +181,18 @@ class SessionService() : Service() {
         var trackListStr = mutableListOf<String>()
         var lastTrackId: String? = null
         var trackListCnt = 0
-        val MIN_ITERATION_DURATION_MSECS = 12*1000
         sessionActive = true
         while (sessionActive) {
             val startTime = System.currentTimeMillis()
 
-            val spotifyTrackJSON = songAcquirer.getNextSong() ?: continue
-
+            val spotifyTrackJSON = songAcquirer.getNextSong()
+            if (spotifyTrackJSON == null) {
+                delayNextIteration(startTime)
+                continue
+            }
             if (spotifyTrackJSON.getString("id") == lastTrackId) {
                 Log.d(TAG, "Redundant track (skipping)")
+                delayNextIteration(startTime)
                 continue
             }
             lastTrackId = spotifyTrackJSON.getString("id")
@@ -210,13 +225,7 @@ class SessionService() : Service() {
                 callback?.getCurrentSong(trackListStr.joinToString(separator="\n"))
             }
 
-            // Rate limit - assure each iteration elapses minimum time before proceeding
-            val endTime = System.currentTimeMillis()
-            val elapsedTime = endTime - startTime
-            val sleepTime = maxOf(0, MIN_ITERATION_DURATION_MSECS - elapsedTime)
-            withContext(Dispatchers.IO) {
-                Thread.sleep(sleepTime)
-            }
+            delayNextIteration(startTime)
         }
     }
 }

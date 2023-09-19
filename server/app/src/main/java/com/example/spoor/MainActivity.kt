@@ -55,7 +55,7 @@ open class MainActivity : AppCompatActivity(), SessionService.ActivityCallback {
         super.onCreate(savedInstanceState)
 
         // Initialize Prefs File
-        prefs = getSharedPreferences("com.example.recscollector", MODE_PRIVATE)
+        prefs = getSharedPreferences("com.example.spoor", MODE_PRIVATE)
         editor = prefs.edit()
 
         initUi()

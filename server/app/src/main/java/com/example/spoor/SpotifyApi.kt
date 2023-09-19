@@ -100,6 +100,7 @@ class SpotifyApi() {
      * Fetch uri of song currently playing for this User
      */
     fun getCurrentlyPlayingSong(): JSONObject? {
+        Log.d(TAG, "Running getCurrentlyPlayingSong...")
         val searchUrl = "https://api.spotify.com/v1/me/player/currently-playing"
 
         val request = Request.Builder()
@@ -113,8 +114,18 @@ class SpotifyApi() {
             throw IOException("$TAG Unexpected code $response")
         }
 
-        val json = JSONObject(response.body!!.string())
-        return json.getJSONObject("item")
+        try {
+            val json = JSONObject(response.body?.string())
+            if (json.getJSONObject("item").getString("type") == "track") {
+                return json.getJSONObject("item")
+            } else {
+                Log.d(TAG, "Currently playing item is not a song track; returning null...")
+                return null
+            }
+        } catch(e: Exception) {
+            Log.d(TAG, "Error encountered fetching track: ${e.message}; returning null...")
+            return null
+        }
     }
 
     fun getSongUri(artistName: String, songTitle: String): JSONObject? {

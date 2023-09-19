@@ -106,7 +106,7 @@ class SpotifyAuthActivity : Activity() {
                 refreshToken = json.getString("refresh_token")
                 val expiresIn = json.getInt("expires_in")
                 val currentTimeMillis = Instant.now().toEpochMilli()
-                val expirationTimeMillis = currentTimeMillis + expiresIn
+                val expirationTimeMillis = currentTimeMillis + expiresIn*1000
 
                 Log.d(TAG, "Initial Auth - Got Access Token! $accessToken")
                 Log.d(TAG, " REQUEST TOKEN - WHAT IS THE REFRESHTOKEN $refreshToken")
@@ -193,7 +193,7 @@ class SpotifyAuthActivity : Activity() {
 
                 val expiresIn = JSONObject(response.body!!.string()).getInt("expires_in")
                 val currentTimeMillis = Instant.now().toEpochMilli()
-                val expirationTimeMillis = currentTimeMillis + expiresIn
+                val expirationTimeMillis = currentTimeMillis + expiresIn*1000
 
                 // Storing the access token
                 editor!!.putString("SPOTIFY_ACCESS_TOKEN", accessToken)
@@ -211,7 +211,7 @@ class SpotifyAuthActivity : Activity() {
         super.onStart()
         Log.d(TAG, "Spotify Auth Starting")
 
-        preferences = getSharedPreferences("com.example.recscollector", MODE_PRIVATE)
+        preferences = getSharedPreferences("com.example.spoor", MODE_PRIVATE)
         editor = preferences!!.edit()
 
         accessToken = preferences!!.getString("SPOTIFY_ACCESS_TOKEN", "Undefined").toString()
@@ -219,14 +219,11 @@ class SpotifyAuthActivity : Activity() {
         val expirationTimeMillis = preferences!!.getLong("SPOTIFY_EXPIRATION", 0)
 
         // Never acquired -- go through with first time authorization
-        val accessOrRefreshTokenUndefined = (accessToken == "Undefined" || refreshToken == "Undefined")
         val currentTimeMillis = Instant.now().toEpochMilli()
-        val tokenExpired = (expirationTimeMillis < currentTimeMillis)
-        if (accessOrRefreshTokenUndefined || tokenExpired) {
-            Log.d(TAG, "Conditions met for refresh")
+        if (accessToken == "Undefined" || refreshToken == "Undefined") {
+            Log.d(TAG, "Acquiring Access Code and Token First Time")
             Log.d(TAG, "Access Token is : $accessToken")
             Log.d(TAG, "Refresh Token is : $refreshToken")
-            Log.d(TAG, "Now: $currentTimeMillis // Expiration time: $expirationTimeMillis")
 
             requestAccessCode()
 
@@ -234,19 +231,22 @@ class SpotifyAuthActivity : Activity() {
             try {
                 runBlocking { requestAccessToken(accessCode) }
             } catch (e: Exception) {
-                // handle the exception
+                Log.d(TAG, "Exception! " + e.cause + " // " + e.message)
+            }
+        }
+        else if (expirationTimeMillis < currentTimeMillis) {
+            Log.d(TAG, "Access Token Expired - Refreshing")
+            Log.d(TAG, "Now: $currentTimeMillis // Expiration time: $expirationTimeMillis")
+
+            try {
+                runBlocking { refreshAccessToken() }
+            } catch (e: Exception) {
                 Log.d(TAG, "Exception! " + e.cause + " // " + e.message)
             }
         }
         else {
-            // Refresh Access Token
-            refreshToken = preferences!!.getString("SPOTIFY_REFRESH_TOKEN", "Undefined").toString()
-            try {
-                runBlocking { refreshAccessToken() }
-            } catch (e: Exception) {
-                // handle the exception
-                Log.d(TAG, "Exception! " + e.cause + " // " + e.message)
-            }
+            val expirationSecs = (expirationTimeMillis - currentTimeMillis) / 1000
+            Log.d(TAG, "Access Token Still valid, expires in $expirationSecs")
         }
 
         // Acquire User ID
