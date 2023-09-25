@@ -188,17 +188,24 @@ class SpotifyAuthActivity : Activity() {
             val response = call.execute()
             if (response.isSuccessful) {
                 // return the response body as a string
-                accessToken = JSONObject(response.body!!.string()).getString("access_token")
+                val responseJson = JSONObject(response.body!!.string())
+                accessToken = responseJson.getString("access_token")
                 Log.d(TAG, "Refresh - Got Access Token! $accessToken")
 
-                val expiresIn = JSONObject(response.body!!.string()).getInt("expires_in")
-                val currentTimeMillis = Instant.now().toEpochMilli()
-                val expirationTimeMillis = currentTimeMillis + expiresIn*1000
+                try {
+                    val expiresIn = responseJson.getInt("expires_in")
+                    val currentTimeMillis = Instant.now().toEpochMilli()
+                    val expirationTimeMillis = currentTimeMillis + expiresIn*1000
 
-                // Storing the access token
-                editor!!.putString("SPOTIFY_ACCESS_TOKEN", accessToken)
-                editor!!.putLong("SPOTIFY_EXPIRATION", expirationTimeMillis)
-                editor!!.commit()
+                    // Storing the access token
+                    Log.d(TAG, "Storing access token, expiration...")
+                    editor!!.putString("SPOTIFY_ACCESS_TOKEN", accessToken)
+                    editor!!.putLong("SPOTIFY_EXPIRATION", expirationTimeMillis)
+                    editor!!.commit()
+                } catch (e: Exception) {
+                    throw IOException("Time exception: ${e.cause} // ${e.message}")
+                }
+
             } else {
                 Log.d(TAG, "Response failed")
                 throw IOException("Unexpected code $response")
@@ -231,7 +238,7 @@ class SpotifyAuthActivity : Activity() {
             try {
                 runBlocking { requestAccessToken(accessCode) }
             } catch (e: Exception) {
-                Log.d(TAG, "Exception! " + e.cause + " // " + e.message)
+                throw IOException("Exception! " + e.cause + " // " + e.message)
             }
         }
         else if (expirationTimeMillis < currentTimeMillis) {
@@ -241,7 +248,7 @@ class SpotifyAuthActivity : Activity() {
             try {
                 runBlocking { refreshAccessToken() }
             } catch (e: Exception) {
-                Log.d(TAG, "Exception! " + e.cause + " // " + e.message)
+                throw IOException("Refresh Access Token Exception! " + e.cause + " // " + e.message)
             }
         }
         else {
@@ -257,7 +264,7 @@ class SpotifyAuthActivity : Activity() {
                     getUserId()
                 } catch (e: Exception) {
                     // handle the exception
-                    Log.d(TAG, "Exception! " + e.cause + " // " + e.message)
+                    throw IOException("getUserID Exception! " + e.cause + " // " + e.message)
                 }
             }
         }
